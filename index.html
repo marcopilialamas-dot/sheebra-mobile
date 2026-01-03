@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sheebra Mobile 🦓</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .container {
+            max-width: 400px;
+            width: 100%;
+            text-align: center;
+        }
+        h1 {
+            color: white;
+            font-size: 48px;
+            margin-bottom: 10px;
+        }
+        .subtitle {
+            color: rgba(255,255,255,0.9);
+            margin-bottom: 40px;
+            font-size: 18px;
+        }
+        .btn {
+            display: block;
+            width: 100%;
+            padding: 20px;
+            margin: 15px 0;
+            background: white;
+            color: #667eea;
+            text-decoration: none;
+            border-radius: 15px;
+            font-weight: 700;
+            font-size: 18px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            transition: transform 0.2s;
+        }
+        .btn:active { transform: scale(0.98); }
+        .btn-pos { background: #10b981; color: white; }
+        .btn-admin { background: #f59e0b; color: white; }
+        .footer {
+            margin-top: 30px;
+            color: rgba(255,255,255,0.7);
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🦓</h1>
+        <h1>Sheebra</h1>
+        <p class="subtitle">Mobile POS System</p>
+        
+        <a href="pos.html" class="btn btn-pos">
+            📱 POS (Ventas)
+        </a>
+        
+        <a href="admin.html" class="btn btn-admin">
+            ⚙️ Admin Dashboard
+        </a>
+        
+        <div class="footer">v3.0 Mobile Edition</div>
+    </div>
+</body>
+</html>

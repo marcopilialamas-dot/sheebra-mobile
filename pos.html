@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Sheebra POS 🦓</title>
+    <style>
+        /* RESET & VARS */
+        * {
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #f3f4f6;
+            color: #1f2937;
+        }
+        /* SCREENS */
+        .screen {
+            display: none;
+            min-height: 100vh;
+            padding: 20px;
+            animation: fadeIn 0.2s;
+        }
+        .screen.active {
+            display: block;
+        }
+        /* UI COMPONENTS */
+        .btn {
+            display: block;
+            width: 100%;
+            padding: 16px;
+            border: none;
+            border-radius: 12px;
+            background: #4f46e5;
+            color: white;
+            font-size: 16px;
+            font-weight: 700;
+            text-align: center;
+            cursor: pointer;
+            transition: transform 0.1s;
+            margin-bottom: 12px;
+        }
+        .btn:active {
+            transform: scale(0.98);
+            opacity: 0.9;
+        }
+        .btn-sec {
+            background: white;
+            color: #374151;
+            border: 1px solid #d1d5db;
+        }
+        .btn-red {
+            background: #ef4444;
+            color: white;
+        }
+        input {
+            width: 100%;
+            padding: 16px;
+            font-size: 18px;
+            border: 2px solid #e5e7eb;
+            border-radius: 12px;
+            margin-bottom: 16px;
+            background: white;
+            outline: none;
+        }
+        input:focus {
+            border-color: #4f46e5;
+        }
+        .card {
+            background: white;
+            padding: 24px;
+            border-radius: 16px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+            margin-bottom: 20px;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .badge {
+            font-size: 11px;
+            padding: 4px 8px;
+            border-radius: 20px;
+            font-weight: 700;
+        }
+        .bg-green {
+            background: #dcfce7;
+            color: #166534;
+        }
+        .bg-red {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+        .bg-yellow {
+            background: #fef3c7;
+            color: #b45309;
+        }    
+        /* GRID */
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+        }
+        .p-card {
+            background: white;
+            padding: 12px;
+            border-radius: 12px;
+            border: 1px solid #e5e7eb;
+            text-align: center;
+        }
+        .p-card:active {
+            border-color: #4f46e5;
+            background: #f9fafb;
+        }
+        .p-name {
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 4px;
+            height: 36px;
+            overflow: hidden;
+            line-height: 1.3;
+        }
+        .p-price {
+            font-size: 16px;
+            font-weight: 800;
+            color: #4f46e5;
+        }
+        .p-stock {
+            font-size: 10px;
+            color: #6b7280;
+            margin-top: 4px;
+        }
+        /* FLOATER */
+        #floater {
+            position: fixed;
+            bottom: 20px;
+            left: 5%;
+            width: 90%;
+            background: #111827;
+            color: white;
+            padding: 16px 24px;
+            border-radius: 50px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.2);
+            z-index: 100;
+            transform: translateY(150%);
+            transition: transform 0.3s;
+        }
+        #floater.files {
+            transform: translateY(0);
+        }
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- 1. PIN LOGIN SCREEN (MAIN) -->
+    <div id="scr-shift" class="screen active" style="display:flex; flex-direction:column; justify-content:center;">
+        <div style="text-align:center; margin-bottom:40px">
+            <h1 style="margin:0; font-size:32px;">Sheebra 🦓</h1>
+            <p style="color:#6b7280; margin-top:8px">Mobile POS Login</p>
+        </div>
+        <div class="card">
+            <label
+                style="display:block; font-size:12px; font-weight:700; color:#4b5563; margin-bottom:15px; text-align:center">INGRESA
+                TU PIN</label>
+            <input type="password" id="pin-login-val" maxlength="4" placeholder="••••" inputmode="numeric"
+                style="font-size:32px; text-align:center; letter-spacing:10px; margin-bottom:20px; height:60px; -webkit-text-security:disc"
+                autocomplete="off" onkeyup="onPinInput()">
+            <div id="pin-error"
+                style="display:none; background:#fee2e2; padding:10px; border-radius:8px; margin-bottom:15px; font-size:12px; color:#991b1b; border:1px solid #fecaca; text-align:center">
+                ❌ Mensaje de error
+            </div>
+            <!-- SHIFT MANAGEMENT UI (Hidden until PIN OK) -->
+            <div id="shift-mgmt" style="display:none; margin-top:15px; border-top:1px dashed #e5e7eb; padding-top:15px">
+                <div style="text-align:center; margin-bottom:15px; font-size:14px">Hola <b><span
+                            id="shift-user-name"></span></b>!</div>
+                <div id="cash-field">
+                    <label
+                        style="display:block; font-size:12px; font-weight:700; color:#4b5563; margin-bottom:8px">FONDO
+                        INICIAL ($)</label>
+                    <input type="number" id="start-cash-val" placeholder="0" value="0" style="margin-bottom:20px">
+                </div>
+                <div id="shift-info"
+                    style="display:none; background:#fef3c7; padding:10px; border-radius:8px; margin-bottom:15px; font-size:12px; color:#92400e; border:1px solid #fcd34d; text-align:center">
+                    ℹ️ Turno detectado
+                </div>
+                <button id="shift-btn" class="btn" onclick="openShift()">ABRIR TURNO</button>
+            </div>
+            <div style="text-align:center; margin-top:20px">
+<button onclick="resetUrl()" style="font-size:12px; color:#9ca3af; background:none; border:none; cursor:pointer">⚙️ Cambiar URL (Desvincular)</button>
+            </div>
+        </div>
+        <p style="text-align:center; font-size:11px; color:#9ca3af; margin-top:20px">v3.0 (Direct Login)</p>
+    </div>
+    <!-- 2. SETUP SCREEN -->
+    <div id="scr-setup" class="screen">
+        <div class="header">
+            <h2>⚙️ Setup</h2>
+        </div>
+        <p style="color:#4b5563; font-size:14px; margin-bottom:20px">Connect to Google Apps Script.</p>
+        <div class="card">
+            <label style="display:block; font-size:12px; font-weight:700; color:#4b5563; margin-bottom:8px">SCRIPT
+                URL</label>
+            <input type="text" id="url-val" placeholder="https://script.google.com/..." style="font-size:12px">
+            <button class="btn" onclick="saveConfig()">CONNECT</button>
+        </div>
+        <button class="btn btn-sec" onclick="show('scr-shift'); hide('scr-setup')">Volver</button>
+    </div>
+    <!-- 3. POS SCREEN -->
+    <div id="scr-pos" class="screen" style="padding-bottom:100px">
+<div class="header">
+            <div>
+                <div style="font-weight:800; font-size:20px">Sheebra 🦓</div>
+                <div id="pos-user" style="font-size:14px; color:#6b7280; font-weight:400">Guest</div>
+            </div>
+            <div style="display:flex; gap:10px; align-items:center">
+                <div id="net-stat" class="badge bg-green">ONLINE</div>
+                <button class="badge bg-red" style="border:none; cursor:pointer" onclick="logout()">🏃 SALIR</button>
+            </div>
+        </div>
+        <input type="text" id="search" placeholder="🔍 Find products..." onkeyup="filter()">
+        <div id="grid" class="grid">
+            <div style="grid-column:1/-1; text-align:center; padding:40px; color:#9ca3af">Loading...</div>
+        </div>
+        <br><br>
+        <button class="btn btn-sec" onclick="doReload()">Sync / Reload</button>
+    </div>
+    <!-- 4. CHECKOUT SCREEN -->
+    <div id="scr-pay" class="screen"
+        style="z-index:200; position:fixed; top:0; left:0; width:100%; height:100vh; background:#fff; overflow-y:auto">
+        <div class="header">
+            <h2>Checkout</h2>
+            <button onclick="closeCart()" style="background:none; border:none; font-size:24px">✕</button>
+        </div>
+        <div id="cart-list"></div>
+        <hr style="border:none; border-top:1px dashed #e5e7eb; margin:20px 0">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px">
+            <div style="font-size:18px; font-weight:600">Total</div>
+            <div style="font-size:32px; font-weight:800" id="pay-total">$0</div>
+        </div>
+        <!-- SPLIT PAYMENT INPUT -->
+        <div
+            style="display:flex; gap:10px; margin-bottom:20px; align-items:center; background:#f3f4f6; padding:10px; border-radius:8px">
+            <label style="font-weight:bold; font-size:12px; white-space:nowrap">Monto a Pagar:</label>
+            <input type="number" id="pay-amount"
+                style="font-size:20px; font-weight:bold; text-align:right; margin:0; border:1px solid #ddd"
+                placeholder="$0">
+        </div>
+        <button class="btn" style="background:#16a34a; margin-bottom:10px" onclick="pay('Efectivo')">💵
+            EFECTIVO</button>
+        <div style="display:flex; gap:10px; margin-bottom:10px">
+            <button class="btn" style="background:#2563eb; flex:1" onclick="pay('Debito')">💳 DÉBITO</button>
+            <button class="btn" style="background:#1e40af; flex:1" onclick="pay('Credito')">💳 CRÉDITO</button>
+        </div>
+        <button class="btn" style="background:#009ee3; margin-bottom:10px" onclick="pay('Mercadopago')">🤝
+            MERCADOPAGO</button>
+    </div>
+    <!-- FLOATER -->
+    <div id="floater" onclick="openCart()">
+        <div style="font-weight:700" id="fl-count">0 items</div>
+        <div style="font-weight:700" id="fl-total">$0</div>
+    </div>
+
+    <script>
+        // GLOBAL STATE
+var s = {
+    url: '', prods: [], cart: [], sales: [],
+    user: '', // Solo necesitamos el usuario
+    loggingIn: false,
+    employees: []
+};
+        var FB_OK = false;
+        // DOM HELPERS
+        function el(id) { return document.getElementById(id); }
+        function hide(id) { if (el(id)) el(id).style.display = 'none'; }
+        function show(id) { if (el(id)) el(id).style.display = 'block'; }
+        function val(id) { return el(id).value; }
+        // INIT
+       window.onload = function () {
+    try {
+        var u = localStorage.getItem('df_url');
+        if (u) s.url = u;
+        var pr = localStorage.getItem('df_prods');
+        if (pr) s.prods = JSON.parse(pr);
+        // var sh ... BORRAR carga de turno
+        if (Array.isArray(s.prods) && s.prods.length > 0) render();
+        if (s.url) {
+            // Siempre ir al Login, nunca intentar entrar directo por turno guardado
+            show('scr-shift');
+            setTimeout(function () { el('pin-login-val').focus(); }, 300);
+            startFb();
+} else {
+                    hide('scr-shift'); // <--- AGREGAR ESTA LINEA
+                    show('scr-setup');
+                }
+    } catch (e) { console.error("Init", e); }
+};
+        // FUNCTIONS
+        function fetchPin() {
+            // This function is no longer needed in the direct login flow
+            // as PIN validation is done against the backend for the specific user.
+        }
+        function saveConfig() {
+            var u = val('url-val');
+            if (!u || u.indexOf('script.google.com') === -1) return alert("Invalid URL");
+            localStorage.setItem('df_url', u);
+            s.url = u;
+            alert("Saved! Loading...");
+            hide('scr-setup'); show('scr-shift');
+            startFb();
+        }
+        
+        function doReload() { location.reload(); }
+        // SHIFT MANAGEMENT
+
+        // 🔐 PIN LOGIN FUNCTIONS (DIRECT)
+        function onPinInput() {
+            var pin = val('pin-login-val');
+            hide('pin-error');
+            if (pin.length === 4) {
+                loginWithPin(pin);
+            }
+        }
+   
+function resetUrl() {
+            // Confirmamos antes de borrar
+            if (confirm("¿Estás seguro que quieres cambiar la URL del Script? Se desvinculará este dispositivo.")) {
+                localStorage.removeItem('df_url'); // Borramos la URL guardada
+                location.reload(); // Recargamos la página. Al no haber URL, te llevará directo a la pantalla de SETUP.
+            }
+        }
+function loginWithPin(pin) {
+            if (s.loggingIn) return;
+            s.loggingIn = true;
+            var pinInput = el('pin-login-val');
+            pinInput.disabled = true;
+            // Función auxiliar interna para "Exito"
+            var doSuccess = function(name) {
+                s.loggingIn = false;
+                pinInput.disabled = false;
+                s.user = name;
+                el('pin-login-val').value = '';
+                goToPOS();
+            };
+            // 1. Intentamos validar con el servidor (ONLINE)
+            var params = {
+                method: 'POST',
+                body: JSON.stringify({ action: 'validateUserPin', pin: pin })
+            };
+            fetch(s.url, params)
+                .then(function (r) { return r.json(); })
+                .then(function (d) {
+                    if (d.success && d.employee) {
+                        doSuccess(d.employee.name);
+                    } else {
+                        s.loggingIn = false;
+                        pinInput.disabled = false;
+                        showPinError(d.error || 'PIN incorrecto');
+                        pinInput.value = '';
+                    }
+                })
+                .catch(function (e) {
+                    // 2. MODALIDAD OFFLINE (Si falla internet)
+                    console.log("Offline login...");
+                    
+                    // Cargamos usuarios guardados
+                    var cachedUsers = JSON.parse(localStorage.getItem('df_users') || '[]');
+                    
+                    // Buscamos si alguno tiene este PIN
+                    var found = cachedUsers.find(function(u) { return u.pin == pin; });
+                    
+                    if (found) {
+                        alert("⚠️ OFFLINE: Bienvenido " + found.name);
+                        doSuccess(found.name);
+                    } else if (pin === '1234') { 
+                        // Opcional: Mantener 1234 como emergencia universal
+                         alert("⚠️ OFFLINE: Acceso de Emergencia");
+                         doSuccess("Usuario Offline");
+                    } else {
+                        s.loggingIn = false;
+                        pinInput.disabled = false;
+                        showPinError('Offline: PIN no reconocido');
+                        pinInput.value = '';
+                    }
+                });
+        }
+        function showPinError(msg) {
+            var errEl = el('pin-error');
+            if (errEl) {
+                errEl.textContent = '❌ ' + msg;
+                errEl.style.display = 'block';
+                setTimeout(function () { hide('pin-error'); }, 3000);
+            }
+        }
+        
+       function goToPOS() {
+    hide('scr-shift'); hide('scr-users');
+    show('scr-pos');
+ el('pos-user').textContent = s.user; 
+    render();
+    startFb();
+    // Ya no llamamos a watchShiftStatusMobile()
+}
+
+   
+function logout() {
+    s.user = '';
+    s.cart = [];
+    
+    updCart(); // <--- AGREGAR ESTO (Esconde el floater y resetea visuales)
+    
+    hide('scr-pos'); hide('scr-setup');
+    show('scr-shift');
+    if(el('pin-login-val')) el('pin-login-val').value = '';
+    
+    // Y PARA LIMPIAR EL NOMBRE DEL PASO 2:
+    if(el('pos-user')) el('pos-user').textContent = '';
+}
+        function render() {
+            var g = el('grid');
+            if (!g) return;
+            g.innerHTML = '';
+            if (!s.prods || !Array.isArray(s.prods)) s.prods = [];
+            var q = (el('search').value || '').toUpperCase();
+            var list = s.prods.filter(function (p) {
+                if (!p || !p.n) return false;
+                return !q || p.n.toUpperCase().indexOf(q) > -1;
+            }).slice(0, 50);
+            if (list.length === 0) {
+                g.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:20px;color:#999">' +
+                    (s.prods.length === 0 ? 'Inventory Empty<br><small>' + (FB_OK ? 'Cloud Connected ☁️' : 'Offline Mode ⚡') + '</small>' : 'No matches') + '</div>';
+                return;
+            }
+            list.forEach(function (p) {
+                var d = document.createElement('div');
+                d.className = 'p-card';
+                d.onclick = function () { add(p); };
+                
+                // Si el stock (s) es menor o igual al reorden (r), PINTA ROJO
+                var stockStyle = (p.s <= (p.r || 5)) ? 'color:#ef4444; font-weight:800' : 'color:#6b7280';
+                
+                d.innerHTML = '<div class="p-name">' + p.n + '</div>' +
+                              '<div class="p-price">$' + p.p + '</div>' +
+                              '<div class="p-stock" style="' + stockStyle + '">' + p.s + '</div>';
+                g.appendChild(d);
+            });
+        }
+        function filter() { render(); }
+        function add(p) {
+            var exist = s.cart.find(function (i) { return i.sku === p.sku; });
+            if (exist) exist.q++; else s.cart.push({ sku: p.sku, n: p.n, p: p.p, q: 1 });
+            updCart();
+            if (navigator.vibrate) navigator.vibrate(50);
+        }
+        var tempPayments = [];
+        function updCart() {
+            var t = 0, c = 0;
+            s.cart.forEach(function (i) { t += i.p * i.q; c += i.q; });
+            el('fl-count').innerText = c + ' items';
+            el('fl-total').innerText = '$' + t;
+            el('pay-total').innerText = '$' + (t - getPaidTotal());
+            el('pay-amount').value = (t - getPaidTotal());
+            var f = el('floater');
+            if (c > 0) f.classList.add('files'); else f.classList.remove('files');
+            var l = el('cart-list');
+            l.innerHTML = '';
+            s.cart.forEach(function (i, idx) {
+                var d = document.createElement('div');
+                d.style.cssText = 'display:flex; justify-content:space-between; padding:12px 0; border-bottom:1px solid #eee';
+                d.innerHTML = '<div><b>' + i.n + '</b><br><span style="color:#666">' + i.q + ' x $' + i.p + '</span></div>' +
+                    '<div style="text-align:right"><b>$' + (i.q * i.p) + '</b><br><button onclick="rem(' + idx + ')" style="color:red;border:none;background:none;font-weight:bold;margin-top:4px">REMOVE</button></div>';
+                l.appendChild(d);
+            });
+            if (tempPayments.length > 0) {
+                var pDiv = document.createElement('div');
+                pDiv.style.color = 'green'; pDiv.innerHTML = '<br><b>Pagado:</b>';
+                tempPayments.forEach(function (p) { pDiv.innerHTML += '<div>' + p.method + ': $' + p.amount + '</div>'; });
+                l.appendChild(pDiv);
+            }
+        }
+        function getPaidTotal() {
+            return tempPayments.reduce(function (a, b) { return a + Number(b.amount); }, 0);
+        }
+        function rem(idx) {
+            if (tempPayments.length) { if (!confirm("Cancelar pagos parciales?")) return; tempPayments = []; }
+            s.cart.splice(idx, 1);
+            updCart();
+            if (s.cart.length === 0) closeCart();
+        }
+        function openCart() { tempPayments = []; updCart(); show('scr-pay'); }
+        function closeCart() { hide('scr-pay'); tempPayments = []; }
+        function pay(method) {
+            if (s.cart.length === 0) return;
+            var cartTotal = s.cart.reduce(function (a, b) { return a + (b.p * b.q); }, 0);
+            var paidSoFar = getPaidTotal();
+            var remaining = cartTotal - paidSoFar;
+            var amountInput = Number(el('pay-amount').value);
+            if (!amountInput || amountInput <= 0) amountInput = remaining;
+            if (amountInput > remaining) amountInput = remaining;
+            tempPayments.push({ method: method, amount: amountInput });
+            var newPaid = getPaidTotal();
+            if (newPaid >= cartTotal - 0.5) {
+                var txn = {
+                    action: 'processTransaction', txnId: 'TXN-' + Date.now(),
+                    date: new Date().toISOString(), user: s.user || 'MobileUser',
+                    params: { cash: 0, card: 0 }, total: cartTotal,
+                    payMethod: tempPayments.length > 1 ? 'Mixto' : tempPayments[0].method,
+                    payments: tempPayments,
+                    items: s.cart.map(function (i) { return { sku: i.sku, name: i.n, qty: i.q, price: i.p }; })
+                };
+                s.sales.push(txn);
+                localStorage.setItem('df_sales_q', JSON.stringify(s.sales));
+                s.cart = []; tempPayments = [];
+                closeCart();
+                alert("Venta Exitosa! 🦓");
+                render();
+                syncQueue();
+            } else {
+                updCart();
+            }
+        }
+        function syncQueue() {
+            if (s.sales.length === 0) return;
+            var txn = s.sales[0];
+            if (!s.url) return;
+            fetch(s.url, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(txn) })
+                .then(function () {
+                    s.sales.shift();
+                    localStorage.setItem('df_sales_q', JSON.stringify(s.sales));
+                    el('net-stat').innerText = "SYNC (" + s.sales.length + ")";
+                    if (s.sales.length > 0) setTimeout(syncQueue, 1000); else el('net-stat').innerText = "ONLINE";
+                })
+                .catch(function () {                    el('net-stat').innerText = "PENDIENTES (" + s.sales.length + ")";
+                   el('net-stat').className = "badge bg-yellow"; // <--- Usa la clase amarilla
+                });
+        }
+        setInterval(syncQueue, 30000);
+      function startFb() {
+            if (typeof firebase === 'undefined') {
+                console.log("FB: Library fail or blocked. Running Offline.");
+                el('net-stat').innerText = "OFFLINE (Local)";
+                el('net-stat').className = "badge bg-red";
+                FB_OK = false;
+                render();
+                return;
+            }
+            try {
+                if (!firebase.apps.length) firebase.initializeApp({ databaseURL: "https://sheebra-68425-default-rtdb.firebaseio.com", projectId: "sheebra-68425" });
+                var db = firebase.database();
+                FB_OK = true;
+                
+                // 1. Connection Status
+                db.ref('.info/connected').on('value', function (snap) {
+                    var c = snap.val();
+                    if (el('net-stat')) {
+                        el('net-stat').className = c ? 'badge bg-green' : 'badge bg-red';
+                        el('net-stat').innerText = c ? 'ONLINE' : 'OFFLINE';
+                    }
+                });
+                // 2. Inventory Sync (ESTO FALTABA)
+               db.ref('inventory').on('value', function (snap) {
+    var val = snap.val();
+    if (val) {
+        s.prods = Object.values(val).map(function (p) { 
+            return { sku: p.sku, 
+                n: p.name, 
+                p: Number(p.price) || 0, 
+                s: Number(p.stock) || 0, 
+                r: Number(p.reorder) || 5  }; 
+        });
+        localStorage.setItem('df_prods', JSON.stringify(s.prods));
+        render();
+    }
+    // NO vaciar s.prods si no hay datos (mantener cache offline)
+});
+                // 3. Cache Employees for Offline Login
+                db.ref('employees').on('value', function (snap) {
+                    var val = snap.val();
+                    if (val) {
+                        s.employees = Object.values(val); 
+                        // Guardamos en memoria del cel para cuando no haya internet
+                        localStorage.setItem('df_users', JSON.stringify(s.employees));
+                    }
+                });
+                // NO Shifts listener needed
+                render();
+                
+            } catch (e) {
+                console.error("FB Error", e);
+                el('net-stat').innerText = "FB ERROR";
+            }
+        }
+     
+        // SHIFT SYNC: Detect shift closures from other devices
+       
+    </script>
+    <!-- FAIL-SAFE SCRIPT LOADING -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"
+        onerror="console.log('FB App Load Fail')"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"
+        onerror="console.log('FB DB Load Fail')"></script>
+</body>
+</html>

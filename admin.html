@@ -1,0 +1,1228 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Sheebra Mobile Admin 🦓</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/vue/3.2.47/vue.global.prod.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+    <style>
+        :root {
+            --p: #4f46e5;
+            --bg: #f3f4f6;
+            --c: #111827;
+            --w: #ffffff;
+            --safe-b: 80px;
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg);
+            color: var(--c);
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: auto;
+        }
+        /* LAYOUT */
+        .content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 15px;
+            padding-bottom: calc(var(--safe-b) + 20px);
+            -webkit-overflow-scrolling: touch;
+        }
+        .card {
+            background: var(--w);
+            border-radius: 12px;
+            padding: 15px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+            margin-bottom: 15px;
+        }
+        /* UI ELEMENTS */
+        input,
+        select {
+            padding: 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            width: 100%;
+            box-sizing: border-box;
+            font-size: 14px;
+            margin-bottom: 8px;
+            background: white;
+        }
+        .btn {
+            padding: 12px;
+            border-radius: 8px;
+            border: none;
+            font-weight: 700;
+            cursor: pointer;
+            width: 100%;
+            font-size: 14px;
+            text-transform: uppercase;
+            margin-top: 5px;
+        }
+        .btn-p {
+            background: var(--p);
+            color: white;
+        }
+        .btn-d {
+            background: #fee2e2;
+            color: #b91c1c;
+        }
+        .btn-s {
+            background: white;
+            border: 1px solid #d1d5db;
+            color: #374151;
+        }
+        .btn-w {
+            background: #fef3c7;
+            color: #b45309;
+            border: 1px solid #fcd34d;
+        }
+        .badge {
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: bold;
+            display: inline-block;
+        }
+        .bg-green {
+            background: #dcfce7;
+            color: #166534;
+        }
+        .bg-red {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+        .bg-blue {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+        /* KPI & GRID */
+        .dash-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 10px;
+        }
+        .kpi-card {
+            background: white;
+            padding: 15px;
+            border-radius: 12px;
+            border: 1px solid #e5e7eb;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .kpi-val {
+            font-size: 20px;
+            font-weight: 800;
+        }
+        .kpi-sub {
+            font-size: 10px;
+            color: #6b7280;
+            text-transform: uppercase;
+            font-weight: 700;
+        }
+        /* TABLES */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+        }
+        th {
+            text-align: left;
+            padding: 8px;
+            color: #6b7280;
+            border-bottom: 2px solid #e5e7eb;
+        }
+        td {
+            padding: 10px 8px;
+            border-bottom: 1px solid #f3f4f6;
+        }
+        .scroll-x {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+        /* BOTTOM NAV */
+        .btm-nav {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            background: white;
+            border-top: 1px solid #e5e7eb;
+            display: flex;
+            justify-content: space-around;
+            padding: 10px 0;
+            padding-bottom: max(10px, env(safe-area-inset-bottom));
+            z-index: 1000;
+        }
+        .nav-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            font-size: 10px;
+            color: #9ca3af;
+            font-weight: 600;
+            width: 20%;
+        }
+        .nav-item.active {
+            color: var(--p);
+        }
+        .nav-icon {
+            font-size: 20px;
+        }
+        /* LOCK SCREEN */
+        .lock-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #111827;
+            color: white;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 2000;
+        }
+       .pin-in {
+            background: white;
+            color: black;
+            font-size: 24px;
+            letter-spacing: 5px;
+            text-align: center;
+            width: 180px;
+            font-weight: 800;
+            -webkit-text-security: disc;
+            margin: 0 auto; /* Centrado */
+            display: block;
+        }
+        /* LOADING */
+        .loading {
+            position: fixed;
+            inset: 0;
+            background: rgba(255, 255, 255, 0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+        }
+        .dash-grid, .kpi-card, .card {
+            animation: fadeIn 0.3s ease-in-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0.7; transform: translateY(5px); }
+            to { opacity: 1; transform: translateY(0); }
+        }    
+</style>
+</head>
+<body>
+    <div id="app">
+        <!-- 1. LOCK SCREEN -->
+        <div v-if="locked && apiUrl" class="lock-screen">
+            <div style="font-size:40px; margin-bottom:20px">🦓</div>
+            <h2 style="margin-bottom:30px">Sheebra Admin</h2>
+            <form @submit.prevent="checkPin">
+                <input type="tel" v-model="pinInput" class="pin-in" maxlength="4" placeholder="••••" autofocus>
+                <button class="btn btn-p" style="margin-top:20px">ENTRAR</button>
+            </form>
+            <div style="margin-top:20px; font-size:12px; color:#6b7280">v2025.12 (Vue Mob)</div>
+            <button @click="resetUrl" style="background:none; border:none; color:#4b5563; font-size:12px; margin-top:15px; cursor:pointer; text-decoration:underline">
+                ⚙️ Cambiar URL
+            </button>        
+</div>
+        <!-- 2. SETUP SCREEN -->
+        <div v-else-if="!apiUrl" class="lock-screen" style="background:#f3f4f6; color:#111827">
+            <div class="card" style="width:300px; text-align:center">
+                <h3>⚙️ Configuración</h3>
+                <p style="font-size:12px; color:#666">Ingresa la URL del Backend (Google Script)</p>
+                <input v-model="tempUrl" placeholder="https://script.google.com/macros/s/..." style="font-size:11px">
+                <button class="btn btn-p" @click="saveUrl">GUARDAR</button>
+            </div>
+        </div>
+        <!-- 3. MAIN APP -->
+        <div v-else style="display:flex; flex-direction:column; height:100%">
+            <!-- HEADER -->
+            <div
+                style="background:white; padding:15px; border-bottom:1px solid #eee; display:flex; justify-content:space-between; align-items:center">
+                <div style="font-weight:800; color:var(--p)">Sheebra Admin 🦓</div>
+                <div :class="['badge', isOnline ? 'bg-green' : 'bg-red']">{{ isOnline ? 'ONLINE' : 'OFFLINE' }}</div>
+            </div>
+            <div class="content">
+                <!-- VIEW: DASHBOARD (Use v-show to keep Chart Canvas alive) -->
+                <div v-show="tab === 'dash'">
+                    <div style="padding:15px; background:white; margin-bottom:15px; border-radius:8px">
+                        <div style="display:flex; gap:10px; align-items:end; flex-wrap:wrap">
+                            <div style="flex:1; min-width:120px">
+                                <label
+                                    style="display:block; font-size:11px; color:#6b7280; margin-bottom:5px; font-weight:700">DE</label>
+                                <input type="date" v-model="startDate" style="width:100%">
+                            </div>
+                            <div style="flex:1; min-width:120px">
+                                <label
+                                    style="display:block; font-size:11px; color:#6b7280; margin-bottom:5px; font-weight:700">HASTA</label>
+                                <input type="date" v-model="endDate" style="width:100%">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="dash-grid">
+                        <div class="kpi-card">
+                            <div>
+                                <div class="kpi-sub">VENTAS BRUTAS</div>
+                                <div class="kpi-val">${{ rangeTotal.toLocaleString() }}</div>
+                            </div>
+                            <div class="badge bg-green">{{ rangeCount }} Tx</div>
+                        </div>
+                        <div class="kpi-card">
+                            <div>
+                                <div class="kpi-sub">UTILIDAD NETA</div>
+                                <div :class="['kpi-val', rangeNet >= 0 ? 'text-green' : 'text-red']"
+                                    :style="{color: rangeNet>=0 ? '#166534' : '#dc2626'}">${{ rangeNet.toLocaleString()
+                                    }}</div>
+                            </div>
+                            <div class="badge bg-blue" title="Gross - Expenses">Real</div>
+                        </div>
+                        <div class="kpi-card">
+                            <div>
+                                <div class="kpi-sub">TICKET PROMEDIO</div>
+                                <div class="kpi-val" style="color:#6b7280">${{ avgTicket.toLocaleString() }}</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card" style="margin-top:15px; height:200px">
+                        <canvas id="salesChart"></canvas>
+                    </div>
+                    <div class="dash-grid" style="grid-template-columns:1fr 1fr; margin-top:15px">
+                        <div class="card"
+                            style="height:220px; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center">
+                            <h4 style="margin:0 0 10px 0; font-size:11px; color:#6b7280">INGRESOS</h4>
+                            <div style="width:100%; height:160px"><canvas id="incomeDonut"></canvas></div>
+                        </div>
+                        <div class="card"
+                            style="height:220px; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center">
+                            <h4 style="margin:0 0 10px 0; font-size:11px; color:#6b7280">EGRESOS</h4>
+                            <div style="width:100%; height:160px"><canvas id="expenseDonut"></canvas></div>
+                        </div>
+                    </div>
+                    <!-- PAYMENT METHOD BREAKDOWN TABLES -->
+                    <div class="dash-grid" style="grid-template-columns:1fr 1fr; margin-top:15px">
+                        <div class="card">
+                            <h4 style="margin:0 0 10px 0; font-size:11px; color:#6b7280">💰 INGRESOS POR MÉTODO</h4>
+                            <table style="width:100%; font-size:12px">
+                                <thead>
+                                    <tr>
+                                        <th style="text-align:left">Método</th>
+                                        <th style="text-align:right">Total</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr v-for="(val, key) in paymentStats" :key="key" v-if="val > 0">
+                                        <td>{{ key }}</td>
+                                        <td style="text-align:right; font-weight:bold">${{ val.toLocaleString() }}</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="card">
+                            <h4 style="margin:0 0 10px 0; font-size:11px; color:#6b7280">💸 EGRESOS POR MÉTODO</h4>
+                            <table style="width:100%; font-size:12px">
+                                <thead>
+                                    <tr>
+                                        <th style="text-align:left">Método</th>
+                                        <th style="text-align:right">Total</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr v-for="(val, key) in expenseStats" :key="key" v-if="val > 0">
+                                        <td>{{ key }}</td>
+                                        <td style="text-align:right; font-weight:bold">${{ val.toLocaleString() }}</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <!-- MISSING SECTION: HISTORY LISTS -->
+                    <div
+                        style="margin-top:20px; text-transform:uppercase; font-size:11px; font-weight:bold; color:#6b7280; letter-spacing:1px; margin-bottom:5px">
+                        HISTORIAL DE VENTAS</div>
+                    <div class="card scroll-x">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Hora</th>
+                                    <th>Total</th>
+                                    <th>Pago</th>
+                                    <th>Detalle</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr v-for="s in filteredSales.slice(0,50)" :key="s.txnId">
+                                    <td>{{ formatTime(s.time || s.date) }}</td>
+                                    <td style="font-weight:bold">${{ s.total.toLocaleString() }}</td>
+                                    <td>{{ s.method || s.payMethod || '-' }}</td>
+                                    <td style="font-size:11px; color:#666">{{ s.items || '-' }}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div
+                        style="margin-top:20px; text-transform:uppercase; font-size:11px; font-weight:bold; color:#6b7280; letter-spacing:1px; margin-bottom:5px">
+                        CIERRES / TURNOS</div>
+                    <div class="card scroll-x">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Usuario</th>
+                                    <th>Inicio</th>
+                                    <th>Cierre</th>
+                                    <th>Estado</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr v-for="sh in filteredShifts.slice(0,10)" :key="sh.id">
+                                    <td><b>{{ sh.user }}</b></td>
+                                    <td style="font-weight:bold">${{ (sh.startCash || 0).toLocaleString() }}</td>
+                                    <td style="font-weight:bold">${{ (sh.endCash || 0).toLocaleString() }}</td>
+                                    <td><span :class="['badge', sh.status==='CLOSED'?'bg-green':'bg-red']">{{
+                                            sh.status==='CLOSED'?'CERRADO':'ABIERTO' }}</span></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div
+                        style="margin-top:20px; text-transform:uppercase; font-size:11px; font-weight:bold; color:#6b7280; letter-spacing:1px; margin-bottom:5px">
+                        GASTOS / COMPRAS</div>
+                    <div class="card scroll-x">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Fecha</th>
+                                    <th>Item</th>
+                                    <th>Costo</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr v-for="p in filteredPurchases.slice(0,20)" :key="p.id">
+                                    <td>{{ new Date(p.date).toLocaleDateString() }}</td>
+                                    <td>{{ p.name }} ({{ p.qty }})</td>
+                                    <td style="color:#d97706; font-weight:bold">-${{ (p.qty*p.cost).toLocaleString() }}
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <!-- VIEW: STOCK -->
+                <div v-if="tab === 'stock'">
+                    <h3>📦 Ingreso Mercadería</h3>
+                    <div class="card">
+                        <input v-model="stockSearch" placeholder="Buscar producto..." @input="filterStockProds">
+                        <!-- SEARCH RESULTS -->
+                        <div v-if="stockQueryResults.length"
+                            style="background:#f9fafb; border:1px solid #ddd; max-height:150px; overflow-y:auto; margin-bottom:10px; border-radius:8px">
+                            <div v-for="p in stockQueryResults" @click="addToRestock(p)"
+                                style="padding:10px; border-bottom:1px solid #eee; font-size:12px; cursor:pointer">
+                                <b>{{ p[1] }}</b> <span style="color:#666">(${{p[4]}})</span>
+                            </div>
+                        </div>
+                        <div v-if="restockQueue.length">
+                            <div class="badge bg-blue" style="margin-bottom:10px">{{ restockQueue.length }} Items en
+                                Cola</div>
+                            <div v-for="(item, idx) in restockQueue" :key="idx"
+                                style="display:flex; gap:5px; margin-bottom:10px; align-items:center">
+                                <div style="flex:1">
+                                    <div style="font-weight:bold; font-size:12px">{{ item.name }}</div>
+                                    <div style="font-size:10px; color:#666">Cost: <input type="number"
+                                            v-model.number="item.cost" style="width:60px; display:inline; padding:4px"
+                                            min="0">
+                                    </div>
+                                </div>
+                                <input type="number" v-model.number="item.qty"
+                                    style="width:50px; padding:8px; text-align:center" min="0">
+                                <button class="btn-d" style="width:30px; padding:0; height:30px; border-radius:50%"
+                                    @click="restockQueue.splice(idx,1)">×</button>
+                            </div>
+                            <label>Pago Proveedor:</label>
+                            <select v-model="restockPayMethod">
+                                <option>Efectivo</option>
+                                <option>Debito</option>
+                                <option>Credito</option>
+                                <option>Mercadopago</option>
+                            </select>
+                            <button class="btn btn-p" @click="processRestock">CONFIRMAR INGRESO (${{
+                                restockTotal.toLocaleString() }})</button>
+                        </div>
+                    </div>
+                    <div class="card" v-if="pendingRestocks.length">
+                        <h3>⚠️ Pendientes (Offline)</h3>
+                        <button class="btn btn-w" @click="syncRestocks">Sincronizar ({{ pendingRestocks.length
+                            }})</button>
+                    </div>
+                </div>
+                <!-- USERS TAB -->
+                <div v-if="tab==='users'">
+                    <div class="card">
+                        <h3 style="margin-bottom:15px">👥 Usuarios - Estadísticas</h3>
+                        <!-- DATE FILTER -->
+                        <div style="display:flex; gap:8px; margin-bottom:15px">
+                            <div style="flex:1">
+                                <label
+                                    style="display:block; font-size:11px; color:#6b7280; margin-bottom:5px; font-weight:700">DE</label>
+                                <input type="date" v-model="startDate" style="width:100%">
+                            </div>
+                            <div style="flex:1">
+                                <label
+                                    style="display:block; font-size:11px; color:#6b7280; margin-bottom:5px; font-weight:700">HASTA</label>
+                                <input type="date" v-model="endDate" style="width:100%">
+                            </div>
+                        </div>
+                        <!-- ADD USER -->
+                        <div style="display:flex; gap:8px; margin-bottom:15px">
+                            <input v-model="newUser" placeholder="Nombre completo..." style="flex:1">
+                            <button class="btn btn-p" @click="manageUser('add')" style="flex:1">Agregar</button>
+                        </div>
+                        <div class="scroll-x">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Nombre</th>
+                                        <th>PIN</th>
+                                        <th>Turnos</th>
+                                        <th>Horas</th>
+                                        <th>Ventas</th>
+                                        <th>Total</th>
+                                        <th>X</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr v-for="u in usersListStats" :key="u.id">
+                                        <td><b>{{ u.name }}</b></td>
+                                        <td>{{ u.pin }}</td>
+                                        <td>{{ u.shifts }}</td>
+                                        <td>{{ u.hours ? u.hours.toFixed(1)+'h' : '--' }}</td>
+                                        <td>{{ u.saleCount }}</td>
+                                        <td style="color:#166534; font-weight:bold">${{ u.saleTotal.toLocaleString() }}
+                                        </td>
+                                        <td>
+                                            <button class="btn btn-s" @click="showPinModal(u)"
+                                                style="width:auto; padding:6px 10px; font-size:11px; margin-right:4px">🔐</button>
+                                            <button class="btn btn-d" @click="delUser(u.id)">X</button>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                <!-- VIEW: INVENTORY -->
+                <div v-if="tab === 'inv'">
+                    <div style="display:flex; gap:10px; margin-bottom:10px">
+                        <input v-model="invSearch" placeholder="SKU o Nombre">
+                        <button class="btn btn-p" style="width:50px" @click="showEdit({})">+</button>
+                    </div>
+                    <!-- BATCH QUEUE -->
+                    <div v-if="productQueue.length" class="card" style="background:#f0fdf4; border:1px solid #bbf7d0">
+                        <h4 style="margin:0 0 10px 0; color:#166534">Cola Masiva ({{ productQueue.length }})</h4>
+                        <button class="btn btn-p" @click="confirmProductBatch">Confirmar Todo</button>
+                    </div>
+                    <div style="height:400px; overflow-y:auto">
+                        <div v-for="p in filteredProducts" :key="p[0]" @click="showEdit(p)" class="card"
+                            style="padding:10px; display:flex; justify-content:space-between; align-items:center">
+                            <div>
+                                <div style="font-weight:bold">{{ p[1] }}</div>
+                                <div style="font-size:11px; color:#666">{{ p[0] }}</div>
+                            </div>
+                            <div style="text-align:right">
+                                <div style="font-weight:bold; color:var(--p)">${{ p[2] }}</div>
+                                <div :class="['badge', p[3] <= (p[5]||5) ? 'bg-red':'bg-green']">
+    {{ p[3] }} / Min: {{ p[5]||5 }}
+</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- BOTTOM NAV -->
+            <div class="btm-nav">
+                <div class="nav-item" :class="{active: tab==='dash'}" @click="tab='dash'">
+                    <span class="nav-icon">📊</span><span>Dash</span>
+                </div>
+                <div class="nav-item" :class="{active: tab==='stock'}" @click="tab='stock'">
+                    <span class="nav-icon">📦</span><span>Stock</span>
+                </div>
+                <div class="nav-item" :class="{active: tab==='inv'}" @click="tab='inv'">
+                    <span class="nav-icon">📋</span><span>Inv</span>
+                </div>
+                <div class="nav-item" :class="{active: tab==='users'}" @click="tab='users'">
+                    <span class="nav-icon">👥</span><span>Team</span>
+                </div>
+            </div>
+            <!-- EDITOR MODAL -->
+            <div v-if="editor.show" class="loading" style="background:rgba(0,0,0,0.8)">
+                <div class="card" style="width:85%; max-width:400px; max-height:90vh; overflow-y:auto">
+                    <h3>{{ editor.isNew ? 'Nuevo Producto' : 'Editar' }}</h3>
+                    <label>Nombre</label><input v-model="editor.name">
+                    <label>SKU</label><input v-model="editor.sku" :disabled="!editor.isNew">
+                    <div style="display:flex; gap:10px">
+                        <div><label>Precio</label><input type="number" v-model.number="editor.price"
+                                @input="calcReverse"></div>
+                        <div><label>Costo</label><input type="number" v-model.number="editor.cost" @input="calcPrice">
+                        </div>
+                    </div>
+                    <label>Stock</label><input type="number" v-model.number="editor.stock">
+<label>Punto de Reorden (Mínimo)</label><input type="number" v-model.number="editor.reorder" placeholder="Ej: 5">
+                    <div style="margin-top:15px; gap:10px; display:flex; flex-direction:column">
+                        <button v-if="editor.isNew" class="btn btn-w" @click="addToProductQueue">Agregar a Cola
+                            (+)</button>
+                        <button class="btn btn-p" @click="saveProduct">Guardar</button>
+                        <button class="btn btn-s" @click="editor.show=false">Cancelar</button>
+<button v-if="!editor.isNew" class="btn btn-d" @click="deleteProduct" style="margin-top:10px">🗑️ ELIMINAR PRODUCTO</button>
+                    </div>
+                </div>
+            </div>
+            <!-- PIN MODAL -->
+            <div v-if="pinModal.show"
+                style="position:fixed; inset:0; background:rgba(0,0,0,0.9); display:flex; align-items:center; justify-content:center; z-index:10000">
+                <div class="card" style="width:90%; max-width:350px; padding:20px">
+                    <h3>🔐 PIN - {{ pinModal.userName }}</h3>
+                    <p style="font-size:13px; color:#666; margin-bottom:15px">Nuevo PIN (4 dígitos)</p>
+                    <input v-model="pinModal.newPin" type="password" maxlength="4" placeholder="####"
+                        inputmode="numeric"
+                        style="font-size:24px; text-align:center; letter-spacing:10px; margin-bottom:10px">
+                    <div v-if="pinModal.error"
+                        style="background:#fee2e2; padding:10px; border-radius:8px; margin-bottom:10px; font-size:12px; color:#991b1b">
+                        {{ pinModal.error }}
+                    </div>
+                    <div style="display:flex; gap:10px">
+                        <button class="btn btn-s" @click="closePinModal">Cancelar</button>
+                        <button class="btn btn-p" @click="updateUserPin"
+                            :disabled="pinModal.newPin.length !== 4">Guardar</button>
+                    </div>
+                </div>
+            </div>
+            <!-- LOADING SPINNER -->
+            <div v-if="loading" class="loading">
+                <div style="background:white; padding:20px; border-radius:10px">⏳ Procesando...</div>
+            </div>
+        </div>
+        <!-- DATE SELECTOR MODAL -->
+        <div v-if="showDatePicker"
+            style="position:fixed; inset:0; background:rgba(0,0,0,0.8); z-index:9999; display:flex; align-items:center; justify-content:center">
+            <div class="card" style="width:90%; max-width:350px; text-align:center">
+                <h3 style="margin:0 0 10px 0">📅 Selecciona Período</h3>
+                <p style="font-size:13px; color:#6b7280; margin-bottom:20px">Elige el rango de fechas para visualizar
+                </p>
+                <button class="btn btn-p" style="width:100%; margin-bottom:10px" @click="selectDateRange('today')">📅
+                    HOY</button>
+                <button class="btn btn-s" style="width:100%; margin-bottom:10px" @click="selectDateRange('week')">📅
+                    ESTA SEMANA</button>
+                <button class="btn btn-s" style="width:100%" @click="selectDateRange('month')">📅 ESTE MES</button>
+            </div>
+        </div>
+    </div>
+    <script>
+        // API HELPER
+        async function api(url, act, data = {}) {
+            if (!navigator.onLine) throw new Error("Offline");
+            const res = await fetch(url, {
+                method: 'POST',
+                body: JSON.stringify({ ...data, action: act })
+            });
+            if (!res.ok) throw new Error("Status " + res.status);
+            const json = await res.json();
+            if (json.error) throw new Error(json.error);
+            return json;
+        }
+        const { createApp } = Vue;
+        createApp({
+            data() {
+                const today = new Date().toLocaleDateString('sv');
+                return {
+                    // EMPLOYEES
+                    employees: [], newUser: '',
+                    pinModal: { show: false, userId: '', userName: '', newPin: '', error: '' },
+                    // AUTH
+                    locked: true, pinInput: '', savedPin: localStorage.getItem('df_pin') || '1234',
+                    apiUrl: localStorage.getItem('df_url') || '', tempUrl: '',
+                    // UI
+                    tab: 'dash', loading: false,
+                    isOnline: navigator.onLine,
+                    // DATA - Cached products for offline
+                    products: JSON.parse(localStorage.getItem('df_prods') || '[]'),
+                    usersList: [], allSales: [], allShifts: [], allRestocks: [],
+                    // FEATURES - No pre-selected date
+                    dateFilter: '', startDate: '', endDate: '',
+                    // Stats (Desktop pattern - initialized to 0/[])
+                    rangeTotal: 0, rangeCount: 0, rangeCOGS: 0, purchaseTotal: 0, purchaseCount: 0,
+                    filteredSales: [], filteredPurchases: [],
+                    // STOCK
+                    stockSearch: '', stockQueryResults: [], restockQueue: [], restockPayMethod: 'Efectivo',
+                    pendingRestocks: JSON.parse(localStorage.getItem('df_pend_restocks') || '[]'),
+                    // INVENTORY
+                    invSearch: '', productQueue: [], pendingProducts: [],
+                    editor: { show: false, sku: '', name: '', price: 0, cost: 0, stock: 0, isNew: false },
+                    // CHARTS
+                    chartSales: null, chartIncome: null, chartExpense: null
+                }
+            },
+            computed: {
+                // SHIFTS (Computed - not in data)
+                filteredShifts() {
+                    return this.allShifts.filter(s => {
+                        if (!s.start) return false;
+                        const d = this.normalizeDate(s.start);
+                        return d >= this.startDate && d <= this.endDate;
+                    }).reverse();
+                },
+                rangeNet() {
+                    const total = this.rangeTotal || 0;
+                    const cogs = this.rangeCOGS || 0;
+                    const purchases = this.purchaseTotal || 0;
+                    return total - cogs - purchases;
+                },
+                avgTicket() { return this.rangeCount ? Math.round(this.rangeTotal / this.rangeCount) : 0; },
+                // PAYMENT METHOD BREAKDOWN
+                paymentStats() {
+                    const counts = { 'Efectivo': 0, 'Debito': 0, 'Credito': 0, 'Mercadopago': 0, 'Otro': 0 };
+                    this.filteredSales.forEach(s => {
+                        // Check if this is a mixed payment (stored in details string)
+                        if (s.details && (s.method === 'Mixto' || s.payMethod === 'Mixto')) {
+                            // Parse details string: "Debito: 40000|Credito: 57045"
+                            const parts = s.details.split('|');
+                            parts.forEach(part => {
+                                const [methodRaw, amountRaw] = part.split(':');
+                                if (methodRaw && amountRaw) {
+                                    const m = this.normalizeMethod(methodRaw.trim());
+                                    counts[m] = (counts[m] || 0) + Number(amountRaw.trim() || 0);
+                                }
+                            });
+                        } else if (s.payments && Array.isArray(s.payments) && s.payments.length > 0) {
+                            s.payments.forEach(p => {
+                                const m = this.normalizeMethod(p.method);
+                                counts[m] = (counts[m] || 0) + Number(p.amount || 0);
+                            });
+                        } else {
+                            const m = this.normalizeMethod(s.method || s.payMethod);
+                            counts[m] = (counts[m] || 0) + Number(s.total || 0);
+                        }
+                    });
+                    return counts;
+                },
+                expenseStats() {
+                    const counts = { 'Efectivo': 0, 'Debito': 0, 'Credito': 0, 'Mercadopago': 0, 'Otro': 0 };
+                    this.filteredPurchases.forEach(p => {
+                        const m = this.normalizeMethod(p.payMethod || 'Efectivo');
+                        counts[m] = (counts[m] || 0) + (Number(p.cost || 0) * Number(p.qty || 0));
+                    });
+                    return counts;
+                },
+                // INVENTORY
+                filteredProducts() {
+                    if (!this.invSearch) return this.products.slice(0, 50);
+                    const q = this.invSearch.toUpperCase();
+                    return this.products.filter(p => p[1].toUpperCase().includes(q) || p[0].includes(q)).slice(0, 50);
+                },
+                // USERS
+                usersListStats() {
+                    return this.usersList.map(u => {
+                        const myShifts = this.allShifts.filter(s => {
+                            if (s.user !== u.name || s.status !== 'CLOSED') return false;
+                            const d = this.normalizeDate(s.start);
+                            return d >= this.startDate && d <= this.endDate;
+                        });
+                        const mySales = this.filteredSales.filter(s => s.user === u.name);
+                        let totalHours = 0;
+                        myShifts.forEach(s => {
+                            if (s.start && s.end) {
+                                const ms = new Date(s.end) - new Date(s.start);
+                                totalHours += (ms / 3600000); // Convert ms to hours
+                            }
+                        });
+                        const totalSalesVal = mySales.reduce((a, b) => a + Number(b.total), 0);
+                        return {
+                            id: u.id,
+                            name: u.name,
+                            pin: u.pin || '****',
+                            shifts: myShifts.length,
+                            hours: totalHours,
+                            saleCount: mySales.length,
+                            saleTotal: totalSalesVal
+                        };
+                    });
+                },
+                restockTotal() { return this.restockQueue.reduce((a, b) => a + (b.qty * b.cost), 0); }
+            },
+            watch: {
+                tab(v) { if (v === 'dash') setTimeout(() => this.refreshData(), 250); }
+            },
+            methods: {
+async deleteProduct() {
+                    if(!confirm("¿ESTÁS SEGURO? Se eliminará del inventario permanentemente.")) return;
+                    this.loading = true;
+                    try {
+                        await api(this.apiUrl, 'adminDeleteProduct', { sku: this.editor.sku });
+                        this.editor.show = false;
+                        // Forzar refresco local
+                        this.products = this.products.filter(p => p[0] !== this.editor.sku);
+                        localStorage.setItem('df_prods', JSON.stringify(this.products));
+                        alert("Producto Eliminado");
+                    } catch(e) { alert(e.message); }
+                    this.loading = false;
+                },                
+// AUTH
+              async checkPin() {
+                    if (!this.pinInput) return;
+                    this.loading = true;
+                    try {
+                        const res = await api(this.apiUrl, 'validateUserPin', { pin: this.pinInput });
+                        if (res.success && res.employee) {
+                            // CORRECCIÓN MAYÚSCULAS
+                            const esAdmin = (res.employee.role === 'ADMIN' || res.employee.name.toUpperCase() === 'ADMIN');
+                            if (esAdmin) {
+                                this.locked = false; 
+                                // Guardar PIN para futuro offline
+                                localStorage.setItem('df_admin_pin', this.pinInput); 
+                                this.pinInput = '';
+                            } else {
+                                alert("⛔ Solo Admins"); this.pinInput = '';
+                            }
+                        } else {
+                            alert("PIN Incorrecto"); this.pinInput = '';
+                        }
+                    } catch(e) {
+                        // OFFLINE FALLBACK MEJORADO
+                        if(this.pinInput === localStorage.getItem('df_admin_pin')) {
+                            alert("⚠️ Admin Offline (Modo Seguro)");
+                            this.locked = false; this.pinInput = '';
+                        } else {
+                            alert("Offline: No se reconoce el PIN. (Debes haber ingresado online al menos una vez).");
+                        }
+                    }
+                    this.loading = false;
+                },
+                // (Ya no necesitamos fetchPin, la hemos reemplazado arriba)
+                saveUrl() { this.apiUrl = this.tempUrl; localStorage.setItem('df_url', this.tempUrl); this.initFb(); },
+                // API
+                async api(url, act, data = {}) {
+                    if (!navigator.onLine) throw new Error("Offline");
+                    const r = await fetch(url, { method: 'POST', body: JSON.stringify({ ...data, action: act }) });
+                    return await r.json();
+                },
+                // DATA REFRESH (Desktop Pattern)
+                refreshData() {
+                    const sales = this.allSales.filter(s => {
+                        const d = this.normalizeDate(s.date || s.time);
+                        return d >= this.startDate && d <= this.endDate;
+                    });
+                    this.filteredSales = [...sales].sort((a, b) => (b.id || '').localeCompare(a.id || ''));
+                    this.rangeTotal = sales.reduce((a, b) => a + Number(b.total || 0), 0);
+                    this.rangeCOGS = sales.reduce((a, b) => {
+                        if (b.totalCost !== undefined && b.totalCost > 0) return a + Number(b.totalCost);
+                        return a + (Number(b.total || 0) * 0.7);
+                    }, 0);
+                    this.rangeCount = sales.length;
+                    const purchases = this.allRestocks.filter(r => {
+                        const d = this.normalizeDate(r.date);
+                        return d >= this.startDate && d <= this.endDate;
+                    });
+                    this.filteredPurchases = [...purchases].reverse();
+                    this.purchaseTotal = purchases.reduce((a, b) => a + (Number(b.qty || 0) * Number(b.cost || 0)), 0);
+                    this.purchaseCount = purchases.length;
+                    this.renderChart(sales, purchases);
+                },
+resetUrl() {
+                    if(confirm("¿Desvincular dispositivo?")) {
+                        localStorage.removeItem('df_url');
+                        location.reload();
+                    }
+                },                
+// FIREBASE
+                initFb() {
+                    if (!this.apiUrl) return;
+                    if (typeof firebase === 'undefined' || !firebase.apps.length) {
+                        firebase.initializeApp({ databaseURL: "https://sheebra-68425-default-rtdb.firebaseio.com", projectId: "sheebra-68425" });
+                    }
+                    const db = firebase.database();
+                    db.ref('inventory').on('value', s => {
+                        const v = s.val();
+                        this.products = v ? Object.values(v).map(p => [p.sku, p.name, Number(p.price), Number(p.stock), Number(p.cost), Number(p.reorder)]) : [];
+                        localStorage.setItem('df_prods', JSON.stringify(this.products));
+                    });
+                    db.ref('sales').limitToLast(2000).on('value', s => {
+                        this.allSales = s.val() ? Object.values(s.val()) : [];
+                    });
+                    db.ref('restocks').limitToLast(500).on('value', s => {
+                        this.allRestocks = s.val() ? Object.values(s.val()) : [];
+                    });
+                    db.ref('employees').on('value', s => { this.usersList = s.val() ? Object.values(s.val()) : []; });
+                    db.ref('shifts').limitToLast(100).on('value', s => { this.allShifts = s.val() ? Object.values(s.val()) : []; });
+                },
+                // UTILS
+                normalizeDate(isoStr) { if (!isoStr) return ''; return new Date(isoStr).toLocaleDateString('sv'); },
+                normalizeMethod(m) {
+                    if (!m) return 'Otro';
+                    m = m.trim().toLowerCase();
+                    if (m.includes('efectivo') || m.includes('cash')) return 'Efectivo';
+                    if (m.includes('debito')) return 'Debito';
+                    if (m.includes('credito')) return 'Credito';
+                    if (m.includes('mercado') || m.includes('mp')) return 'Mercadopago';
+                    return 'Otro';
+                },
+applyDateFilter() {
+    if (this.startDate && this.endDate) {
+        // Agregar clase para animación
+        document.querySelectorAll('.dash-grid, .kpi-card, .card').forEach(el => {
+            el.style.animation = 'none';
+            setTimeout(() => { el.style.animation = ''; }, 10);
+        });
+        this.refreshData();
+    }
+},
+                // STOCK
+                filterStockProds() {
+                    const q = this.stockSearch.toUpperCase();
+                    if (!q) return this.stockQueryResults = [];
+                    this.stockQueryResults = this.products.filter(p => p[1].toUpperCase().includes(q) || p[0].includes(q)).slice(0, 10);
+                },
+                addToRestock(p) {
+                    this.restockQueue.push({ sku: p[0], name: p[1], qty: 1, cost: p[4] });
+                    this.stockSearch = ''; this.stockQueryResults = [];
+                },
+                async processRestock() {
+                    if (!this.restockQueue.length) return;
+                    this.loading = true;
+                    if (!navigator.onLine) {
+                        this.pendingRestocks.push({ queue: [...this.restockQueue], payMethod: this.restockPayMethod, date: Date.now() });
+                        localStorage.setItem('df_pend_restocks', JSON.stringify(this.pendingRestocks));
+                        alert("Offline. Guardado.");
+                        this.restockQueue = []; this.loading = false; return;
+                    }
+                    try {
+                        await this.api(this.apiUrl, 'processRestock', { queue: this.restockQueue, payMethod: this.restockPayMethod });
+                        alert("Exito"); this.restockQueue = [];
+                    } catch (e) { alert(e.message); }
+                    this.loading = false;
+                },
+                async syncRestocks() {
+                    // --- NUEVO BLOQUE DE SEGURIDAD ---
+                    if (!navigator.onLine) {
+                        return alert("⚠️ Sin internet. No se puede sincronizar ahora.");
+                    }
+                    // ----------------------------------
+                    this.loading = true;                    
+this.loading = true;
+                    const failed = [];
+                    for (const r of this.pendingRestocks) {
+                        try { await this.api(this.apiUrl, 'processRestock', r); } catch (e) { failed.push(r); }
+                    }
+                    this.pendingRestocks = failed; localStorage.setItem('df_pend_restocks', JSON.stringify(this.pendingRestocks));
+                    this.loading = false; alert("Sync completado.");
+                },
+                // INVENTORY
+                showEdit(pRaw) {
+                    if (pRaw[0]) {
+                        // Edit
+                        this.editor = { show: true, sku: pRaw[0], name: pRaw[1], price: pRaw[2], stock: pRaw[3], cost: pRaw[4], reorder: pRaw[5]||5, isNew: false };
+                    } else {
+                        // New
+                        this.editor = { show: true, sku: 'N-' + Date.now(), name: '', price: 0, stock: 0, cost: 0, reorder: 5, isNew: true };
+                    }
+                },
+                calcPrice() { if (this.editor.cost) this.editor.price = Math.round(this.editor.cost * 1.5); },
+                calcReverse() { /* Basic logic */ },
+                addToProductQueue() {
+                    if (!this.editor.name) return;
+                    this.productQueue.push({ ...this.editor, qty: this.editor.stock });
+                    this.showEdit({}); // Reset new
+                },
+async confirmProductBatch() {
+    if (!this.productQueue.length) return;
+    this.loading = true;
+    
+    // 1. SI NO HAY INTERNET => GUARDAR OFFLINE
+    if (!navigator.onLine) {
+        this.pendingProducts = JSON.parse(localStorage.getItem('df_admin_pend_prods') || '[]');
+        this.pendingProducts.push({ products: [...this.productQueue], date: Date.now() });
+        localStorage.setItem('df_admin_pend_prods', JSON.stringify(this.pendingProducts));
+        
+        this.productQueue = []; 
+        this.editor.show = false; 
+        alert("⚠️ Sin internet. Guardado para sincronizar después.");
+        this.loading = false;
+        return;
+    }
+    // 2. INTENTO ONLINE
+    try {
+        await this.api(this.apiUrl, 'adminBatchUpdateProducts', { products: this.productQueue });
+        this.productQueue = []; this.editor.show = false; alert("Carga exitosa");
+    } catch (e) { alert(e.message); }
+    this.loading = false;
+},
+               async saveProduct() {
+                    this.loading = true;
+                    try {
+                        await this.api(this.apiUrl, 'adminUpdateProduct', {
+                            sku: this.editor.sku, 
+                            name: this.editor.name, 
+                            price: this.editor.price, 
+                            qty: this.editor.stock, 
+                            cost: this.editor.cost, 
+                            reorder: this.editor.reorder, // <--- GRABAR ESTO
+                            isNew: this.editor.isNew
+                        });
+                        this.editor.show = false;
+                    } catch (e) { alert(e.message); }
+                    this.loading = false;
+                },
+                // CHART
+                formatTime(iso) {
+                    if (!iso) return '-';
+                    try { return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); }
+                    catch (e) { return '-'; }
+                },
+                // USERS MANAGEMENT
+                async manageUser(act) {
+                    if (act === 'add' && this.newUser) {
+                        this.loading = true;
+                        try {
+                            // El backend asigna 1234 automáticamente
+                            await api(this.apiUrl, 'adminManageEmployee', { subAction: 'add', name: this.newUser });
+                            this.newUser = '';
+                            alert('Usuario agregado ✓ (PIN: 1234)');
+                        } catch (e) { alert('Error: ' + e.message); }
+                        this.loading = false;
+                    } else if (!this.newUser && act === 'add') {
+                        alert('Ingrese un nombre');
+                    }
+                },
+                // MODIFICA delUser PARA PROTEGER ADMIN:
+async delUser(id) {
+                    const u = this.usersList.find(x => x.id === id);
+                    if (u && u.name.toUpperCase() === 'ADMIN') return alert("⛔ No puedes borrar al Admin principal.");
+                    
+                    if (confirm("¿Borrar usuario?")) {
+                        this.loading = true;
+                        try {
+                            await api(this.apiUrl, 'adminManageEmployee', { subAction: 'delete', id: id });
+                        } catch (e) { alert(e.message); }
+                        this.loading = false;
+                    }
+                },
+                // 🔐 PIN MANAGEMENT
+                showPinModal(user) {
+                    this.pinModal = {
+                        show: true,
+                        userId: user.id,
+                        userName: user.name,
+                        newPin: '',
+                        error: ''
+                    };
+                },
+                closePinModal() {
+                    this.pinModal = { show: false, userId: '', userName: '', newPin: '', error: '' };
+                },
+                async updateUserPin() {
+                    if (this.pinModal.newPin.length !== 4) {
+                        this.pinModal.error = 'PIN debe ser 4 dígitos';
+                        return;
+                    }
+                    if (!/^\d{4}$/.test(this.pinModal.newPin)) {
+                        this.pinModal.error = 'Solo números';
+                        return;
+                    }
+                    this.loading = true;
+                    try {
+                        const res = await api(this.apiUrl, 'updateEmployeePin', {
+                            employeeId: this.pinModal.userId,
+                            newPin: this.pinModal.newPin
+                        });
+                        if (res.success) {
+                            this.closePinModal();
+                            alert('✅ PIN actualizado');
+                        } else {
+                            this.pinModal.error = res.error || 'Error';
+                        }
+                    } catch (e) {
+                        this.pinModal.error = e.message || 'Error de conexión';
+                    }
+                    this.loading = false;
+                },
+                // CHART
+                destroyCharts() {
+                    if (this.chartInst) { this.chartInst.destroy(); this.chartInst = null; }
+                    if (this.chartInc) { this.chartInc.destroy(); this.chartInc = null; }
+                    if (this.chartExp) { this.chartExp.destroy(); this.chartExp = null; }
+                },
+renderChart(sales, purchases) {
+    if (!sales) sales = this.filteredSales;
+    if (!purchases) purchases = this.filteredPurchases;
+    
+    this.$nextTick(() => {
+        // COLORS
+        const C = {
+            'Efectivo': { in: '#16a34a', out: '#14532d' },
+            'Debito': { in: '#2563eb', out: '#1e3a8a' },
+            'Credito': { in: '#eab308', out: '#713f12' },
+            'Mercadopago': { in: '#06b6d4', out: '#155e75' },
+            'Otro': { in: '#9ca3af', out: '#4b5563' }
+        };
+        
+        // --- 1. SALES BAR ---
+        const ctx1 = document.getElementById('salesChart');
+        if (ctx1) {
+            // Destruir instancia existente usando Chart.js API
+            const existingChart1 = Chart.getChart(ctx1);
+            if (existingChart1) {
+                existingChart1.destroy();
+            }
+            
+            const hours = {};
+            sales.forEach(s => {
+                try {
+                    const t = s.time || s.date;
+                    if (t && t.includes(':')) {
+                        const h = new Date(t).getHours();
+                        hours[h] = (hours[h] || 0) + Number(s.total || 0);
+                    }
+                } catch (e) { }
+            });
+            
+            const lb = Object.keys(hours).sort((a, b) => Number(a) - Number(b)).map(h => h + 'h');
+            const dt = Object.keys(hours).sort((a, b) => Number(a) - Number(b)).map(h => hours[h]);
+            
+            this.chartSales = new Chart(ctx1, {
+                type: 'bar',
+                data: { 
+                    labels: lb.length ? lb : ['Sin datos'], 
+                    datasets: [{ 
+                        label: 'Ventas', 
+                        data: dt.length ? dt : [0], 
+                        backgroundColor: '#4f46e5', 
+                        borderRadius: 4 
+                    }] 
+                },
+                options: { 
+                    responsive: true, 
+                    maintainAspectRatio: false,
+                    animation: { duration: 400 },
+                    plugins: { legend: { display: false } } 
+                }
+            });
+        }
+        
+        // --- 2. INCOME DONUT ---
+        const ctx2 = document.getElementById('incomeDonut');
+        if (ctx2) {
+            const existingChart2 = Chart.getChart(ctx2);
+            if (existingChart2) {
+                existingChart2.destroy();
+            }
+            
+            const methods = {};
+            sales.forEach(s => {
+                if (s.details && (s.method === 'Mixto' || s.payMethod === 'Mixto')) {
+                    s.details.split('|').forEach(part => {
+                        const [mRaw, valRaw] = part.split(':');
+                        if (mRaw && valRaw) {
+                            const mx = this.normalizeMethod(mRaw);
+                            methods[mx] = (methods[mx] || 0) + Number(valRaw);
+                        }
+                    });
+                } else if (s.payments && Array.isArray(s.payments)) {
+                    s.payments.forEach(p => {
+                        const mx = this.normalizeMethod(p.method);
+                        methods[mx] = (methods[mx] || 0) + Number(p.amount);
+                    });
+                } else {
+                    const m = this.normalizeMethod(s.method || s.payMethod || 'Efectivo');
+                    methods[m] = (methods[m] || 0) + Number(s.total || 0);
+                }
+            });
+            
+            const labels = Object.keys(methods);
+            const data = Object.values(methods);
+            const bg = labels.map(l => C[l] ? C[l].in : C['Otro'].in);
+            
+            if (labels.length > 0) {
+                this.chartIncome = new Chart(ctx2, {
+                    type: 'doughnut',
+                    data: { labels, datasets: [{ data, backgroundColor: bg }] },
+                    options: { 
+                        responsive: true, 
+                        maintainAspectRatio: false,
+                        animation: { duration: 400 },
+                        plugins: { 
+                            legend: { 
+                                position: 'bottom', 
+                                labels: { boxWidth: 12, padding: 10 } 
+                            } 
+                        } 
+                    }
+                });
+            }
+        }
+        
+        // --- 3. EXPENSE DONUT ---
+        const ctx3 = document.getElementById('expenseDonut');
+        if (ctx3) {
+            const existingChart3 = Chart.getChart(ctx3);
+            if (existingChart3) {
+                existingChart3.destroy();
+            }
+            
+            const methods = {};
+            purchases.forEach(p => {
+                const m = this.normalizeMethod(p.payMethod || 'Efectivo');
+                methods[m] = (methods[m] || 0) + (Number(p.qty || 0) * Number(p.cost || 0));
+            });
+            
+            const labels = Object.keys(methods);
+            const data = Object.values(methods);
+            const bg = labels.map(l => C[l] ? C[l].out : C['Otro'].out);
+            
+            if (labels.length > 0) {
+                this.chartExpense = new Chart(ctx3, {
+                    type: 'doughnut',
+                    data: { labels, datasets: [{ data, backgroundColor: bg }] },
+                    options: { 
+                        responsive: true, 
+                        maintainAspectRatio: false,
+                        animation: { duration: 400 },
+                        plugins: { 
+                            legend: { 
+                                position: 'bottom', 
+                                labels: { boxWidth: 12, padding: 10 } 
+                            } 
+                        } 
+                    }
+                });
+            }
+        }
+    });
+}
+            },
+            watch: {
+                tab(v) { if (v === 'dash') this.refreshData(); },
+                startDate() {
+                    if (this.startDate && this.endDate) this.applyDateFilter();
+                },
+                endDate() {
+                    if (this.startDate && this.endDate) this.applyDateFilter();
+                }
+            },
+            mounted() {
+                // this.applyDateFilter(); // Removed - watchers auto-apply when dates selected
+                if (this.apiUrl) this.initFb();
+                setInterval(() => { this.isOnline = navigator.onLine; }, 5000);
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>
