@@ -296,6 +296,14 @@ var s = {
     try {
         var u = localStorage.getItem('df_url');
         if (u) s.url = u;
+var savedSales = localStorage.getItem('df_sales_q');
+if (savedSales) {
+    s.sales = JSON.parse(savedSales);
+    if(s.sales.length > 0) {
+         el('net-stat').innerText = "PENDIENTES (" + s.sales.length + ")";
+         el('net-stat').className = "badge bg-yellow";
+    }
+}
         var pr = localStorage.getItem('df_prods');
         if (pr) s.prods = JSON.parse(pr);
         // var sh ... BORRAR carga de turno

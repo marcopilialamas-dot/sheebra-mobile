@@ -527,7 +527,11 @@
                         <input v-model="invSearch" placeholder="SKU o Nombre">
                         <button class="btn btn-p" style="width:50px" @click="showEdit({})">+</button>
                     </div>
-                    <!-- BATCH QUEUE -->
+<div v-if="pendingProducts.length" class="card" style="background:#fff7ed; border:1px solid #fdba74; margin-bottom:10px">
+    <h4 style="margin:0 0 5px 0; color:#c2410c">⚠️ Pendientes Offline ({{ pendingProducts.length }})</h4>
+    <button class="btn btn-p" style="background:#ea580c" @click="syncProductBatch">☁️ SINCRONIZAR</button>
+</div>                    
+<!-- BATCH QUEUE -->
                     <div v-if="productQueue.length" class="card" style="background:#f0fdf4; border:1px solid #bbf7d0">
                         <h4 style="margin:0 0 10px 0; color:#166534">Cola Masiva ({{ productQueue.length }})</h4>
                         
@@ -680,7 +684,9 @@
                     stockSearch: '', stockQueryResults: [], restockQueue: [], restockPayMethod: 'Efectivo',
                     pendingRestocks: JSON.parse(localStorage.getItem('df_pend_restocks') || '[]'),
                     // INVENTORY
-                    invSearch: '', productQueue: [], pendingProducts: [],
+                    invSearch: '', invSearch: '', 
+productQueue: [], 
+pendingProducts: JSON.parse(localStorage.getItem('df_admin_pend_prods') || '[]'),
                     editor: { show: false, sku: '', name: '', price: 0, cost: 0, stock: 0, isNew: false },
                     // CHARTS
                     chartSales: null, chartIncome: null, chartExpense: null
@@ -940,13 +946,23 @@ this.loading = true;
                     this.loading = false; alert("Sync completado.");
                 },
                 // INVENTORY
-                showEdit(pRaw) {
+showEdit(pRaw) {
                     if (pRaw[0]) {
                         // Edit
-                        this.editor = { show: true, sku: pRaw[0], name: pRaw[1], price: pRaw[2], stock: pRaw[3], cost: pRaw[4], reorder: pRaw[5]||5, isNew: false };
+                        this.editor = { 
+                            show: true, 
+                            sku: pRaw[0], 
+                            oldSku: pRaw[0], // <--- IMPORTANTE: Guardamos el original
+                            name: pRaw[1], 
+                            price: pRaw[2], 
+                            stock: pRaw[3], 
+                            cost: pRaw[4], 
+                            reorder: pRaw[5]||5, 
+                            isNew: false 
+                        };
                     } else {
                         // New
-                        this.editor = { show: true, sku: 'N-' + Date.now(), name: '', price: 0, stock: 0, cost: 0, reorder: 5, isNew: true };
+                        this.editor = { show: true, sku: 'N-' + Date.now(), oldSku: '', name: '', price: 0, stock: 0, cost: 0, reorder: 5, isNew: true };
                     }
                 },
                 calcPrice() { if (this.editor.cost) this.editor.price = Math.round(this.editor.cost * 1.5); },
@@ -979,19 +995,39 @@ async confirmProductBatch() {
     } catch (e) { alert(e.message); }
     this.loading = false;
 },
-               async saveProduct() {
+async syncProductBatch() {
+    if (!navigator.onLine) return alert("⚠️ Aún sin internet.");
+    this.loading = true;
+    const failed = [];
+    for (const batch of this.pendingProducts) {
+        try { await this.api(this.apiUrl, 'adminBatchUpdateProducts', { products: batch.products }); } 
+        catch (e) { failed.push(batch); }
+    }
+    this.pendingProducts = failed; 
+    localStorage.setItem('df_admin_pend_prods', JSON.stringify(this.pendingProducts));
+    this.loading = false;
+    alert("Sincronización terminada.");
+},
+async saveProduct() {
                     this.loading = true;
                     try {
                         await this.api(this.apiUrl, 'adminUpdateProduct', {
-                            sku: this.editor.sku, 
+                            sku: this.editor.sku,
+                            oldSku: this.editor.oldSku, // <--- ENVIAMOS ORIGINAL
                             name: this.editor.name, 
                             price: this.editor.price, 
                             qty: this.editor.stock, 
                             cost: this.editor.cost, 
-                            reorder: this.editor.reorder, // <--- GRABAR ESTO
+                            reorder: this.editor.reorder, 
                             isNew: this.editor.isNew
                         });
                         this.editor.show = false;
+                        
+                        // ACTUALIZAR VISUALMENTE YA (Sin recargar)
+                        if (this.editor.oldSku && this.editor.oldSku !== this.editor.sku) {
+                            const idx = this.products.findIndex(p => p[0] === this.editor.oldSku);
+                            if (idx > -1) this.products[idx][0] = this.editor.sku;
+                        }
                     } catch (e) { alert(e.message); }
                     this.loading = false;
                 },
