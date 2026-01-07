@@ -242,8 +242,8 @@
         <button class="btn btn-sec" onclick="doReload()">Sync / Reload</button>
     </div>
     <!-- 4. CHECKOUT SCREEN -->
-    <div id="scr-pay" class="screen"
-        style="z-index:200; position:fixed; top:0; left:0; width:100%; height:100vh; background:#fff; overflow-y:auto">
+<div id="scr-pay" class="screen"
+        style="z-index:200; position:fixed; top:0; left:0; width:100%; height:100vh; background:#fff; overflow-y:auto; padding-bottom: 200px !important;">
         <div class="header">
             <h2>Checkout</h2>
             <button onclick="closeCart()" style="background:none; border:none; font-size:24px">✕</button>
@@ -529,7 +529,8 @@ function logout() {
                 s.cart = []; tempPayments = [];
                 closeCart();
                 alert("Venta Exitosa! 🦓");
-                render();
+  updCart();                
+render();
                 syncQueue();
             } else {
                 updCart();

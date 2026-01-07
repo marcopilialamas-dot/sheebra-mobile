@@ -530,7 +530,21 @@
                     <!-- BATCH QUEUE -->
                     <div v-if="productQueue.length" class="card" style="background:#f0fdf4; border:1px solid #bbf7d0">
                         <h4 style="margin:0 0 10px 0; color:#166534">Cola Masiva ({{ productQueue.length }})</h4>
+                        
+                        <!-- LISTA DE DETALLE AGREGADA -->
+                        <div style="max-height:150px; overflow-y:auto; background:white; border-radius:6px; padding:5px; margin-bottom:10px; border:1px solid #dcfce7">
+                            <div v-for="(pq, idx) in productQueue" :key="idx" 
+                                 style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #eee; padding:5px">
+                                <div>
+                                    <div style="font-weight:bold; font-size:12px">{{ pq.name }}</div>
+                                    <div style="font-size:10px; color:#666">{{ pq.sku }} (Stock: {{ pq.stock }})</div>
+                                </div>
+                                <button class="btn-d" style="width:auto; padding:4px 8px; font-size:10px" 
+                                        @click="productQueue.splice(idx, 1)">×</button>
+                            </div>
+                        </div>
                         <button class="btn btn-p" @click="confirmProductBatch">Confirmar Todo</button>
+                        <button class="btn btn-d" @click="productQueue=[]" style="margin-top:5px; background:#fff; color:#b91c1c; border:1px solid #fecaca">Descartar Todo</button>
                     </div>
                     <div style="height:400px; overflow-y:auto">
                         <div v-for="p in filteredProducts" :key="p[0]" @click="showEdit(p)" class="card"
