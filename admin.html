@@ -1009,7 +1009,7 @@ async confirmProductBatch() {
                             // El backend asigna 1234 automáticamente
                             await api(this.apiUrl, 'adminManageEmployee', { subAction: 'add', name: this.newUser });
                             this.newUser = '';
-                            alert('Usuario agregado ✓ (PIN: 1234)');
+                            alert('Usuario agregado');
                         } catch (e) { alert('Error: ' + e.message); }
                         this.loading = false;
                     } else if (!this.newUser && act === 'add') {
