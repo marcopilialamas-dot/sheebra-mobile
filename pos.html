@@ -514,7 +514,8 @@ function logout() {
         function openCart() { tempPayments = []; updCart(); show('scr-pay'); }
         function closeCart() { hide('scr-pay'); tempPayments = []; }
         function pay(method) {
-            if (s.cart.length === 0) return;
+ if (!navigator.onLine) return alert("⛔ SIN INTERNET: No se puede procesar la venta.");            
+if (s.cart.length === 0) return;
             var cartTotal = s.cart.reduce(function (a, b) { return a + (b.p * b.q); }, 0);
             var paidSoFar = getPaidTotal();
             var remaining = cartTotal - paidSoFar;

@@ -917,7 +917,8 @@ applyDateFilter() {
                 },
                 async processRestock() {
                     if (!this.restockQueue.length) return;
-                    this.loading = true;
+    if (!navigator.onLine) return alert("⛔ SIN INTERNET: No se puede ingresar mercadería.");                    
+this.loading = true;
                     if (!navigator.onLine) {
                         this.pendingRestocks.push({ queue: [...this.restockQueue], payMethod: this.restockPayMethod, date: Date.now() });
                         localStorage.setItem('df_pend_restocks', JSON.stringify(this.pendingRestocks));
@@ -974,20 +975,11 @@ showEdit(pRaw) {
                 },
 async confirmProductBatch() {
     if (!this.productQueue.length) return;
-    this.loading = true;
+  if (!navigator.onLine) return alert("⛔ SIN INTERNET: Conéctate para guardar los productos.");    
+this.loading = true;
     
     // 1. SI NO HAY INTERNET => GUARDAR OFFLINE
-    if (!navigator.onLine) {
-        this.pendingProducts = JSON.parse(localStorage.getItem('df_admin_pend_prods') || '[]');
-        this.pendingProducts.push({ products: [...this.productQueue], date: Date.now() });
-        localStorage.setItem('df_admin_pend_prods', JSON.stringify(this.pendingProducts));
-        
-        this.productQueue = []; 
-        this.editor.show = false; 
-        alert("⚠️ Sin internet. Guardado para sincronizar después.");
-        this.loading = false;
-        return;
-    }
+
     // 2. INTENTO ONLINE
     try {
         await this.api(this.apiUrl, 'adminBatchUpdateProducts', { products: this.productQueue });
