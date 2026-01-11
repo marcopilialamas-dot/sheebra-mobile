@@ -445,7 +445,7 @@
                                     </div>
                                 </div>
                                 <input type="number" v-model.number="item.qty"
-                                    style="width:50px; padding:8px; text-align:center" min="0">
+                                    style="width:50px; padding:8px; text-align:center" >
                                 <button class="btn-d" style="width:30px; padding:0; height:30px; border-radius:50%"
                                     @click="restockQueue.splice(idx,1)">×</button>
                             </div>
@@ -460,11 +460,7 @@
                                 restockTotal.toLocaleString() }})</button>
                         </div>
                     </div>
-                    <div class="card" v-if="pendingRestocks.length">
-                        <h3>⚠️ Pendientes (Offline)</h3>
-                        <button class="btn btn-w" @click="syncRestocks">Sincronizar ({{ pendingRestocks.length
-                            }})</button>
-                    </div>
+                
                 </div>
                 <!-- USERS TAB -->
                 <div v-if="tab==='users'">
@@ -527,10 +523,7 @@
                         <input v-model="invSearch" placeholder="SKU o Nombre">
                         <button class="btn btn-p" style="width:50px" @click="showEdit({})">+</button>
                     </div>
-<div v-if="pendingProducts.length" class="card" style="background:#fff7ed; border:1px solid #fdba74; margin-bottom:10px">
-    <h4 style="margin:0 0 5px 0; color:#c2410c">⚠️ Pendientes Offline ({{ pendingProducts.length }})</h4>
-    <button class="btn btn-p" style="background:#ea580c" @click="syncProductBatch">☁️ SINCRONIZAR</button>
-</div>                    
+              
 <!-- BATCH QUEUE -->
                     <div v-if="productQueue.length" class="card" style="background:#f0fdf4; border:1px solid #bbf7d0">
                         <h4 style="margin:0 0 10px 0; color:#166534">Cola Masiva ({{ productQueue.length }})</h4>
@@ -684,7 +677,7 @@
                     stockSearch: '', stockQueryResults: [], restockQueue: [], restockPayMethod: 'Efectivo',
                     pendingRestocks: JSON.parse(localStorage.getItem('df_pend_restocks') || '[]'),
                     // INVENTORY
-                    invSearch: '', invSearch: '', 
+                    invSearch: '', 
 productQueue: [], 
 pendingProducts: JSON.parse(localStorage.getItem('df_admin_pend_prods') || '[]'),
                     editor: { show: false, sku: '', name: '', price: 0, cost: 0, stock: 0, isNew: false },
@@ -783,6 +776,31 @@ pendingProducts: JSON.parse(localStorage.getItem('df_admin_pend_prods') || '[]')
                 tab(v) { if (v === 'dash') setTimeout(() => this.refreshData(), 250); }
             },
             methods: {
+async fetchConfig() {
+    if(!this.apiUrl) return;
+    try {
+        let r = await this.api(this.apiUrl, 'getSystemConfig');
+        if(r.success) {
+            localStorage.setItem('df_fb_config', JSON.stringify({u:r.fbUrl, p:r.projectId}));
+            this.initFbReal(r.fbUrl, r.projectId);
+        } else this.initFbFallback();
+    } catch(e) { this.initFbFallback(); }
+},
+initFbFallback() {
+    let c = JSON.parse(localStorage.getItem('df_fb_config')||'null');
+    let def = { u: "https://sheebra-68425-default-rtdb.firebaseio.com", p: "sheebra-68425" };
+    if(c) this.initFbReal(c.u, c.p); else this.initFbReal(def.u, def.p);
+},
+initFbReal(dbUrl, pid) {
+    if (typeof firebase === 'undefined' || !firebase.apps.length) firebase.initializeApp({ databaseURL: dbUrl, projectId: pid });
+    // ---> AQUI EMPIEZA TU LOGICA ORIGINAL (Ver paso B)
+    const db = firebase.database();
+    db.ref('inventory').on('value', s => { this.products = s.val() ? Object.values(s.val()).map(p => [p.sku, p.name, Number(p.price), Number(p.stock), Number(p.cost), Number(p.reorder)]) : []; localStorage.setItem('df_prods', JSON.stringify(this.products)); });
+    db.ref('sales').limitToLast(2000).on('value', s => { this.allSales = s.val() ? Object.values(s.val()) : []; });
+    db.ref('restocks').limitToLast(500).on('value', s => { this.allRestocks = s.val() ? Object.values(s.val()) : []; });
+    db.ref('employees').on('value', s => { this.usersList = s.val() ? Object.values(s.val()) : []; });
+    db.ref('shifts').limitToLast(100).on('value', s => { this.allShifts = s.val() ? Object.values(s.val()) : []; });
+},
 async deleteProduct() {
                     if(!confirm("¿ESTÁS SEGURO? Se eliminará del inventario permanentemente.")) return;
                     this.loading = true;
@@ -828,7 +846,7 @@ async deleteProduct() {
                     this.loading = false;
                 },
                 // (Ya no necesitamos fetchPin, la hemos reemplazado arriba)
-                saveUrl() { this.apiUrl = this.tempUrl; localStorage.setItem('df_url', this.tempUrl); this.initFb(); },
+                saveUrl() { this.apiUrl = this.tempUrl; localStorage.setItem('df_url', this.tempUrl); this.fetchConfig(); },
                 // API
                 async api(url, act, data = {}) {
                     if (!navigator.onLine) throw new Error("Offline");
@@ -864,26 +882,7 @@ resetUrl() {
                     }
                 },                
 // FIREBASE
-                initFb() {
-                    if (!this.apiUrl) return;
-                    if (typeof firebase === 'undefined' || !firebase.apps.length) {
-                        firebase.initializeApp({ databaseURL: "https://sheebra-68425-default-rtdb.firebaseio.com", projectId: "sheebra-68425" });
-                    }
-                    const db = firebase.database();
-                    db.ref('inventory').on('value', s => {
-                        const v = s.val();
-                        this.products = v ? Object.values(v).map(p => [p.sku, p.name, Number(p.price), Number(p.stock), Number(p.cost), Number(p.reorder)]) : [];
-                        localStorage.setItem('df_prods', JSON.stringify(this.products));
-                    });
-                    db.ref('sales').limitToLast(2000).on('value', s => {
-                        this.allSales = s.val() ? Object.values(s.val()) : [];
-                    });
-                    db.ref('restocks').limitToLast(500).on('value', s => {
-                        this.allRestocks = s.val() ? Object.values(s.val()) : [];
-                    });
-                    db.ref('employees').on('value', s => { this.usersList = s.val() ? Object.values(s.val()) : []; });
-                    db.ref('shifts').limitToLast(100).on('value', s => { this.allShifts = s.val() ? Object.values(s.val()) : []; });
-                },
+                
                 // UTILS
                 normalizeDate(isoStr) { if (!isoStr) return ''; return new Date(isoStr).toLocaleDateString('sv'); },
                 normalizeMethod(m) {
@@ -915,29 +914,26 @@ applyDateFilter() {
                     this.restockQueue.push({ sku: p[0], name: p[1], qty: 1, cost: p[4] });
                     this.stockSearch = ''; this.stockQueryResults = [];
                 },
-                async processRestock() {
-                    if (!this.restockQueue.length) return;
-    if (!navigator.onLine) return alert("⛔ SIN INTERNET: No se puede ingresar mercadería.");                    
-this.loading = true;
-                    if (!navigator.onLine) {
-                        this.pendingRestocks.push({ queue: [...this.restockQueue], payMethod: this.restockPayMethod, date: Date.now() });
-                        localStorage.setItem('df_pend_restocks', JSON.stringify(this.pendingRestocks));
-                        alert("Offline. Guardado.");
-                        this.restockQueue = []; this.loading = false; return;
-                    }
-                    try {
-                        await this.api(this.apiUrl, 'processRestock', { queue: this.restockQueue, payMethod: this.restockPayMethod });
-                        alert("Exito"); this.restockQueue = [];
-                    } catch (e) { alert(e.message); }
-                    this.loading = false;
-                },
+               async processRestock() {
+    if (!this.restockQueue.length) return;
+    
+    // 1. BLOQUEO OFFLINE
+    if (!navigator.onLine) return alert("⛔ SIN INTERNET: No se puede ingresar mercadería.");
+    this.loading = true;
+    
+    // 2. INTENTO ONLINE (Ya sin el bloque offline viejo)
+    try {
+        await this.api(this.apiUrl, 'processRestock', { queue: this.restockQueue, payMethod: this.restockPayMethod });
+        alert("Exito"); this.restockQueue = [];
+    } catch (e) { alert(e.message); }
+    this.loading = false;
+},
                 async syncRestocks() {
                     // --- NUEVO BLOQUE DE SEGURIDAD ---
                     if (!navigator.onLine) {
                         return alert("⚠️ Sin internet. No se puede sincronizar ahora.");
                     }
-                    // ----------------------------------
-                    this.loading = true;                    
+                             
 this.loading = true;
                     const failed = [];
                     for (const r of this.pendingRestocks) {
@@ -978,7 +974,7 @@ async confirmProductBatch() {
   if (!navigator.onLine) return alert("⛔ SIN INTERNET: Conéctate para guardar los productos.");    
 this.loading = true;
     
-    // 1. SI NO HAY INTERNET => GUARDAR OFFLINE
+    
 
     // 2. INTENTO ONLINE
     try {
@@ -1001,28 +997,34 @@ async syncProductBatch() {
     alert("Sincronización terminada.");
 },
 async saveProduct() {
-                    this.loading = true;
-                    try {
-                        await this.api(this.apiUrl, 'adminUpdateProduct', {
-                            sku: this.editor.sku,
-                            oldSku: this.editor.oldSku, // <--- ENVIAMOS ORIGINAL
-                            name: this.editor.name, 
-                            price: this.editor.price, 
-                            qty: this.editor.stock, 
-                            cost: this.editor.cost, 
-                            reorder: this.editor.reorder, 
-                            isNew: this.editor.isNew
-                        });
-                        this.editor.show = false;
-                        
-                        // ACTUALIZAR VISUALMENTE YA (Sin recargar)
-                        if (this.editor.oldSku && this.editor.oldSku !== this.editor.sku) {
-                            const idx = this.products.findIndex(p => p[0] === this.editor.oldSku);
-                            if (idx > -1) this.products[idx][0] = this.editor.sku;
-                        }
-                    } catch (e) { alert(e.message); }
-                    this.loading = false;
-                },
+    if (!this.editor.name) return alert("Nombre obligatorio");
+    // 1. Check Duplicado
+    if (this.editor.isNew) { // Mobile solo edita o crea nuevo, no renombra SKU usualmente, pero si pudiese:
+         const existe = this.products.find(p => p[0] === this.editor.sku);
+         if (existe) return alert("⛔ SKU YA EXISTE");
+    }
+    
+    // 2. Check Negativos
+    if (this.editor.price < 0 || this.editor.cost < 0 ) {
+        return alert("⛔ VALORES INVALIDOS (Negativos)");
+    }
+    this.loading = true;
+    try {
+        await this.api(this.apiUrl, 'adminUpdateProduct', {
+            sku: this.editor.sku, name: this.editor.name, price: this.editor.price, qty: this.editor.stock, cost: this.editor.cost, isNew: this.editor.isNew
+        });
+        
+        // Optimistic Update Local
+        if (this.editor.isNew) {
+             this.products.push([this.editor.sku, this.editor.name, this.editor.price, this.editor.stock, this.editor.cost]);
+        }
+        
+        this.editor.show = false;
+    } catch (e) { alert(e.message); }
+    this.loading = false;
+},
+    
+   
                 // CHART
                 formatTime(iso) {
                     if (!iso) return '-';
@@ -1261,7 +1263,7 @@ renderChart(sales, purchases) {
             },
             mounted() {
                 // this.applyDateFilter(); // Removed - watchers auto-apply when dates selected
-                if (this.apiUrl) this.initFb();
+                if (this.apiUrl) this.fetchConfig();
                 setInterval(() => { this.isOnline = navigator.onLine; }, 5000);
             }
         }).mount('#app');
