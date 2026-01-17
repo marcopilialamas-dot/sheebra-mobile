@@ -643,6 +643,20 @@
         throw e;
     }
 }
+        // --- PEGAR ESTO AL PRINCIPIO DEL SCRIPT DE VUE EN admin.html ---
+
+// 1. DETECTOR MÁGICO (Se ejecuta antes de que cargue Vue)
+(function checkMagicLink() {
+    const params = new URLSearchParams(window.location.search);
+    const magicApi = params.get('api');
+    if (magicApi) {
+        localStorage.setItem('df_url', magicApi);
+        window.history.replaceState({}, document.title, window.location.pathname);
+        alert("✅ Admin Conectado con Éxito");
+    }
+})();
+
+// ... Luego sigue tu código: const { createApp } = Vue; ...
         const { createApp } = Vue;
         createApp({
             data() {
