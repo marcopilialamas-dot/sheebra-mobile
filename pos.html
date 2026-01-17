@@ -306,6 +306,8 @@
         <div style="font-weight:700" id="fl-total">$0</div>
     </div>
 
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
     <script>
         // GLOBAL STATE
         var s = {
@@ -383,32 +385,73 @@ if (em) s.employees = JSON.parse(em);
                 location.reload(); // Recargamos la página. Al no haber URL, te llevará directo a la pantalla de SETUP.
             }
         }
-function loginWithPin(pin) {
+// BUSCA LA FUNCIÓN loginWithPin(pin) Y REEMPLÁZALA POR ESTA:
+
+// REEMPLAZA TU FUNCIÓN loginWithPin ACTUAL CON ESTA:
+
+async function loginWithPin(pin) {
     if (s.loggingIn) return;
     s.loggingIn = true;
     var pinInput = el('pin-login-val');
     pinInput.disabled = true;
-    // 1. BUSQUEDA EN MEMORIA (Instantánea / Offline-Ready)
-    // s.employees ya se cargó desde LocalStorage al iniciar
+
+    // 1. INTENTO LOCAL (Memoria del teléfono)
     var foundUser = null;
+    
+    // Si la memoria está vacía, intentamos recargarla
+    if (!s.employees || s.employees.length === 0) {
+         var em = localStorage.getItem('df_employees');
+         if (em) s.employees = JSON.parse(em);
+    }
+
+    // Buscamos comparando Texto con Texto
     if(s.employees && s.employees.length > 0) {
-        foundUser = s.employees.find(function(u){ return u.pin === pin; });
+        foundUser = s.employees.find(function(u){ return String(u.pin) === String(pin); });
     }
+
     if (foundUser) {
-        // ✅ PIN CORRECTO
-        s.loggingIn = false;
-        pinInput.disabled = false;
-        s.user = foundUser.name;
-        el('pin-login-val').value = '';
-        goToPOS();
+        // ✅ LOGIN LOCAL EXITOSO
+        completeLogin(foundUser.name);
     } else {
-        // ❌ PIN INCORRECTO
-        s.loggingIn = false;
-        pinInput.disabled = false;
-        showPinError('PIN incorrecto');
-        pinInput.value = '';
-        pinInput.focus();
+        // 2. INTENTO ONLINE (Plan B - Igual que Desktop)
+        // Si no está en memoria local, preguntamos al servidor
+        console.log("⚠️ No encontrado localmente. Preguntando al servidor...");
+        
+        try {
+            // Usamos fetch directo para validar
+            const res = await fetch(s.url, {
+                method: 'POST',
+                redirect: 'follow',
+                headers: { 'Content-Type': 'text/plain' },
+                body: JSON.stringify({ action: 'validateUserPin', pin: pin })
+            }).then(function(r){ return r.json() });
+
+            if (res.success && res.employee) {
+                // ✅ LOGIN ONLINE EXITOSO
+                console.log("✅ Servidor validó el PIN");
+                completeLogin(res.employee.name);
+            } else {
+                throw new Error("PIN Incorrecto");
+            }
+        } catch (e) {
+            console.log("❌ Falló validación online:", e);
+            s.loggingIn = false;
+            pinInput.disabled = false;
+            showPinError('PIN incorrecto o Sin Conexión');
+            pinInput.value = '';
+            pinInput.focus();
+        }
     }
+}
+
+// Función auxiliar para no repetir código
+function completeLogin(name) {
+    s.loggingIn = false;
+    var pinInput = el('pin-login-val');
+    pinInput.disabled = false;
+    s.user = name;
+    pinInput.value = '';
+    goToPOS();
 }
  
         function showPinError(msg) {
@@ -546,69 +589,137 @@ if(oficial && p.p > oficial.p) {
                 updCart();
             }
         }
-        function syncQueue() {
-            if (s.sales.length === 0) return;
-            var txn = s.sales[0];
-            if (!s.url) return;
-            fetch(s.url, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(txn) })
-                .then(function () {
-                    s.sales.shift();
-                    localStorage.setItem('df_sales_q', JSON.stringify(s.sales));
-                    el('net-stat').innerText = "SYNC (" + s.sales.length + ")";
-                    if (s.sales.length > 0) setTimeout(syncQueue, 1000); else el('net-stat').innerText = "ONLINE";
-                })
-                .catch(function () {
-                    el('net-stat').innerText = "PENDIENTES (" + s.sales.length + ")";
-                    el('net-stat').className = "badge bg-yellow"; // <--- Usa la clase amarilla
-                });
-        }
-        setInterval(syncQueue, 30000);
-        // DYNAMIC FIREBASE CONFIG
+function syncQueue() {
+    if (s.sales.length === 0) return;
+    
+    // Si no hay URL, no hacemos nada
+    if (!s.url) return;
 
+    var txn = s.sales[0];
+    
+    // Usamos AbortController para timeout de 10s
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), 10000);
+
+    fetch(s.url, { 
+        method: 'POST', 
+        // IMPORTANTE: Quitamos 'mode: no-cors' para recibir respuesta real si es posible
+        headers: { 'Content-Type': 'text/plain' }, // text/plain evita preflight
+        body: JSON.stringify(txn),
+        signal: controller.signal
+    })
+    .then(function (res) {
+        clearTimeout(id);
+        if(!res.ok) throw new Error("HTTP Error");
+        return res.text(); // Consumimos respuesta
+    })
+    .then(function () {
+        // ÉXITO: Quitamos de la cola
+        s.sales.shift();
+        localStorage.setItem('df_sales_q', JSON.stringify(s.sales));
+        
+        el('net-stat').innerText = "SYNC (" + s.sales.length + ")";
+        el('net-stat').className = "badge bg-yellow";
+        
+        if (s.sales.length > 0) setTimeout(syncQueue, 1000); 
+        else {
+             el('net-stat').innerText = "ONLINE";
+             el('net-stat').className = "badge bg-green";
+        }
+    })
+    .catch(function (e) {
+        clearTimeout(id);
+        // ERROR: Mantenemos en cola
+        console.log("Sync failed:", e);
+        el('net-stat').innerText = "PENDIENTES (" + s.sales.length + ")";
+        el('net-stat').className = "badge bg-yellow"; 
+    });
+}
 async function fetchConfigAndStartFb() {
-     if (!s.url) return;
-     try {
-         const res = await fetch(s.url, { method: 'POST', body: JSON.stringify({ action: 'getSystemConfig' }) }).then(r=>r.json());
-         if(res.success && res.fbUrl) {
-             localStorage.setItem('df_fb_config', JSON.stringify({ databaseURL: res.fbUrl, projectId: res.projectId }));
-             startFinal(res.fbUrl, res.projectId);
-         } else fallback();
-     } catch(e) { fallback(); }
+    if (!s.url) return;
+    try {
+        console.log("🌍 Conectando a script...", s.url);
+        // AGREGAMOS HEADERS Y REDIRECT PARA EVITAR ERRORES CORS EN MOVIL
+        const res = await fetch(s.url, { 
+            method: 'POST', 
+            redirect: 'follow',
+            headers: { 'Content-Type': 'text/plain' }, 
+            body: JSON.stringify({ action: 'getSystemConfig' }) 
+        }).then(function(r) { return r.json(); });
+
+        if(res.success && res.fbUrl) {
+            console.log("✅ Configuración recibida:", res.fbUrl);
+            localStorage.setItem('df_fb_config', JSON.stringify({ databaseURL: res.fbUrl, projectId: res.projectId }));
+            startFinal(res.fbUrl, res.projectId);
+        } else {
+            console.log("❌ Error en respuesta:", res);
+            fallback();
+        }
+    } catch(e) { 
+        console.error("❌ Error de red:", e);
+        fallback(); 
+    }
 }
 function fallback() {
+    // Intentamos recuperar la última configuración buena
     var cached = JSON.parse(localStorage.getItem('df_fb_config') || 'null');
-    var def = { url: "https://sheebra-68425-default-rtdb.firebaseio.com", pid: "sheebra-68425" };
-    if(cached) startFinal(cached.databaseURL, cached.projectId);
-    else startFinal(def.url, def.pid);
+    
+    if(cached && cached.databaseURL && cached.projectId) {
+        startFinal(cached.databaseURL, cached.projectId);
+    } else {
+        // Si no hay nada, avisamos. NO CONECTAMOS A NADA POR DEFECTO.
+        if(el('net-stat')) {
+             el('net-stat').innerText = "CONFIG ERR"; 
+             el('net-stat').className = "badge bg-red";
+        }
+        alert("⚠️ No se pudo conectar. Revisa tu internet o la URL del script.");
+    }
 }
+// BUSCA LA FUNCIÓN startFinal(dbUrl, pid) Y REEMPLÁZALA POR ESTA:
+
 function startFinal(dbUrl, pid) {
     if (typeof firebase === 'undefined') {
-        el('net-stat').innerText = "OFFLINE (Local)"; el('net-stat').className = "badge bg-red";
-        FB_OK = false; render(); return;
+        el('net-stat').innerText = "LIB ERR"; 
+        return;
     }
     try {
         if (!firebase.apps.length) firebase.initializeApp({ databaseURL: dbUrl, projectId: pid });
         var db = firebase.database();
         FB_OK = true;
         
+        // Monitor de Conexión
         db.ref('.info/connected').on('value', function(sn){ 
             var c=sn.val(); 
-            if(el('net-stat')) { el('net-stat').className=c?'badge bg-green':'badge bg-red'; el('net-stat').innerText=c?'ONLINE':'OFFLINE'; }
+            if(el('net-stat')) { 
+                el('net-stat').className = c ? 'badge bg-green' : 'badge bg-red'; 
+                el('net-stat').innerText = c ? 'ONLINE' : 'OFFLINE'; 
+            }
         });
+        
+        // Cargar Inventario
         db.ref('inventory').on('value', function(sn){ 
-            if(sn.val()){ s.prods=Object.values(sn.val()).map(function(p){return{sku:p.sku,n:p.name,p:Number(p.price)||0,s:Number(p.stock)||0,r:Number(p.reorder)||5};}); localStorage.setItem('df_prods',JSON.stringify(s.prods)); render(); }
+            if(sn.val()){ 
+                s.prods = Object.values(sn.val()).map(function(p){
+                    return {sku:p.sku, n:p.name, p:Number(p.price)||0, s:Number(p.stock)||0, r:Number(p.reorder)||5};
+                }); 
+                localStorage.setItem('df_prods', JSON.stringify(s.prods)); 
+                render(); 
+            }
         });
+
+        // 🔥 CARGAR EMPLEADOS (ESTO ES LO IMPORTANTE)
         db.ref('employees').on('value', function (snap) {
-    var val = snap.val();
-    if(val) {
-        s.employees = Object.values(val);
-        // CRUCIAL: Guardar en memoria para Offline
-        localStorage.setItem('df_employees', JSON.stringify(s.employees));
-    }
-});
+            var val = snap.val();
+            if(val) {
+                s.employees = Object.values(val);
+                // Guardar inmediatamente en localStorage
+                localStorage.setItem('df_employees', JSON.stringify(s.employees));
+                console.log("✅ Usuarios descargados:", s.employees.length);
+            }
+        });
         
         render();
-    } catch (e) { console.error("FB err",e); el('net-stat').innerText="FB ERR"; }
+    } catch (e) { console.error("FB Init Err",e); el('net-stat').innerText="FB ERR"; }
 }
 
       
@@ -617,10 +728,8 @@ function startFinal(dbUrl, pid) {
 
     </script>
     <!-- FAIL-SAFE SCRIPT LOADING -->
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"
-        onerror="console.log('FB App Load Fail')"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"
-        onerror="console.log('FB DB Load Fail')"></script>
+  
 </body>
 
 </html>
+
