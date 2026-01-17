@@ -323,34 +323,57 @@
         function show(id) { if (el(id)) el(id).style.display = 'block'; }
         function val(id) { return el(id).value; }
         // INIT
-        window.onload = function () {
-            try {
-                var u = localStorage.getItem('df_url');
-                if (u) s.url = u;
-                var savedSales = localStorage.getItem('df_sales_q');
-                if (savedSales) {
-                    s.sales = JSON.parse(savedSales);
-                    if (s.sales.length > 0) {
-                        el('net-stat').innerText = "PENDIENTES (" + s.sales.length + ")";
-                        el('net-stat').className = "badge bg-yellow";
-                    }
-                }
-                var pr = localStorage.getItem('df_prods');
-                if (pr) s.prods = JSON.parse(pr);
-var em = localStorage.getItem('df_employees');
-if (em) s.employees = JSON.parse(em);
-                // var sh ... BORRAR carga de turno
-                if (Array.isArray(s.prods) && s.prods.length > 0) render();
-                if (s.url) {
-                    show('scr-shift');
-                    setTimeout(function () { el('pin-login-val').focus(); }, 300);
-                   fetchConfigAndStartFb();
-                } else {
-                    hide('scr-shift');
-                    show('scr-setup');
-                }
-            } catch (e) { console.error("Init", e); }
-        };
+       // --- COPIAR Y PEGAR ESTO EN pos.html (Reemplazando el window.onload anterior) ---
+window.onload = function () {
+    try {
+        // 1. DETECTOR DE ENLACE MÁGICO (Magic Link)
+        // Busca si la URL tiene ?api=...
+        const params = new URLSearchParams(window.location.search);
+        const magicApi = params.get('api');
+
+        if (magicApi) {
+            // Si hay link nuevo, lo guardamos en la memoria del celular
+            localStorage.setItem('df_url', magicApi);
+            // Limpiamos la URL visualmente para que se vea profesional
+            window.history.replaceState({}, document.title, window.location.pathname);
+            // Asignamos a la variable del sistema
+            s.url = magicApi;
+            alert("✅ Sistema Conectado con Éxito");
+        } else {
+            // 2. SI NO HAY LINK, BUSCAMOS EN MEMORIA
+            var u = localStorage.getItem('df_url');
+            if (u) s.url = u;
+        }
+
+        // --- CÓDIGO ORIGINAL DE CARGA ---
+        var savedSales = localStorage.getItem('df_sales_q');
+        if (savedSales) {
+            s.sales = JSON.parse(savedSales);
+            if (s.sales.length > 0) {
+                el('net-stat').innerText = "PENDIENTES (" + s.sales.length + ")";
+                el('net-stat').className = "badge bg-yellow";
+            }
+        }
+        var pr = localStorage.getItem('df_prods');
+        if (pr) s.prods = JSON.parse(pr);
+        var em = localStorage.getItem('df_employees');
+        if (em) s.employees = JSON.parse(em);
+
+        if (Array.isArray(s.prods) && s.prods.length > 0) render();
+        
+        // DECISIÓN DE PANTALLA
+        if (s.url) {
+            show('scr-shift');
+            setTimeout(function () { if(el('pin-login-val')) el('pin-login-val').focus(); }, 300);
+            fetchConfigAndStartFb();
+        } else {
+            // Si no hay URL ni en memoria ni en el link, pedimos ayuda
+            hide('scr-shift');
+            show('scr-setup');
+            alert("⚠️ Sistema no vinculado. Por favor abre el enlace que te envió el vendedor.");
+        }
+    } catch (e) { console.error("Init", e); }
+};
         // FUNCTIONS
         function fetchPin() {
             // This function is no longer needed in the direct login flow
