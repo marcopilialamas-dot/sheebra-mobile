@@ -71,5 +71,24 @@
         
         <div class="footer">v3.0 Mobile Edition</div>
     </div>
-</body>
+    
+<script>
+    window.onload = function() {
+        // 1. Busca si hay una URL mágica en la barra de direcciones
+        const params = new URLSearchParams(window.location.search);
+        const magicApi = params.get('api');
+
+        if (magicApi) {
+            // 2. ¡La atrapamos! La guardamos en la memoria del celular
+            localStorage.setItem('df_url', magicApi);
+            
+            // 3. Confirmación visual para que sepas que funcionó
+            alert("✅ Configuración guardada correctamente. \nAhora puedes entrar al POS o Admin.");
+            
+            // 4. Limpiamos la URL para que quede bonita (quita el ?api=...)
+            window.history.replaceState({}, document.title, window.location.pathname);
+        }
+    };
+</script>
+</body> 
 </html>
