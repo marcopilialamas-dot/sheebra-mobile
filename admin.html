@@ -25,7 +25,6 @@
             display: flex;
             flex-direction: column;
             height: 100vh;
-            overflow: hidden;
             /* FIX: Prevent body scroll */
         }
         /* LAYOUT */
@@ -33,7 +32,7 @@
             flex: 1;
             overflow-y: auto;
             padding: 15px;
-            padding-bottom: calc(var(--safe-b) + 20px);
+            padding-bottom: calc(var(--safe-b) + 50px);
             -webkit-overflow-scrolling: touch;
         }
         .card {
@@ -270,18 +269,18 @@
                 <div v-show="tab === 'dash'">
                     <div style="padding:15px; background:white; margin-bottom:15px; border-radius:8px">
                         <!-- FIX: Gap 20px -->
-                        <div style="display:flex; gap:20px; align-items:end; flex-wrap:wrap">
-                            <div style="flex:1; min-width:120px">
-                                <label
-                                    style="display:block; font-size:11px; color:#6b7280; margin-bottom:5px; font-weight:700">DE</label>
-                                <input type="date" v-model="startDate" style="width:100%">
-                            </div>
-                            <div style="flex:1; min-width:120px">
-                                <label
-                                    style="display:block; font-size:11px; color:#6b7280; margin-bottom:5px; font-weight:700">HASTA</label>
-                                <input type="date" v-model="endDate" style="width:100%">
-                            </div>
-                        </div>
+                        <div style="display:flex; gap:20px; align-items:end; flex-wrap:wrap"
+     :style="{opacity: isUpdating ? 0.5 : 1, pointerEvents: isUpdating ? 'none' : 'auto'}">
+    <div style="flex:1; min-width:120px">
+        <label style="display:block; font-size:11px; color:#6b7280; margin-bottom:5px; font-weight:700">DE</label>
+        <input type="date" v-model="startDate" style="width:100%" :disabled="isUpdating">
+    </div>
+    <div style="flex:1; min-width:120px">
+        <label style="display:block; font-size:11px; color:#6b7280; margin-bottom:5px; font-weight:700">HASTA</label>
+        <input type="date" v-model="endDate" style="width:100%" :disabled="isUpdating">
+    </div>
+</div>
+<div v-if="isUpdating" style="text-align:center; font-size:10px; color:#6b7280; margin-top:5px; font-weight:bold">⏳ Actualizando gráficos...</div>
                     </div>
                     <div class="dash-grid">
                         <div class="kpi-card">
@@ -621,16 +620,29 @@
     <script>
         // API HELPER
         async function api(url, act, data = {}) {
-            if (!navigator.onLine) throw new Error("Offline");
-            const res = await fetch(url, {
-                method: 'POST',
-                body: JSON.stringify({ ...data, action: act })
-            });
-            if (!res.ok) throw new Error("Status " + res.status);
-            const json = await res.json();
-            if (json.error) throw new Error(json.error);
-            return json;
-        }
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), 10000); // 10 seg max
+
+    try {
+        if (!navigator.onLine) throw new Error("Offline");
+        
+        const res = await fetch(url, {
+            method: 'POST',
+            body: JSON.stringify({ ...data, action: act }),
+            signal: controller.signal
+        });
+        
+        clearTimeout(id);
+
+        if (!res.ok) throw new Error("Status " + res.status);
+        const json = await res.json();
+        if (json.error) throw new Error(json.error);
+        return json;
+    } catch (e) {
+        clearTimeout(id);
+        throw e;
+    }
+}
         const { createApp } = Vue;
         createApp({
             data() {
@@ -643,7 +655,7 @@
                     locked: true, pinInput: '', savedPin: localStorage.getItem('df_pin') || '1234',
                     apiUrl: localStorage.getItem('df_url') || '', tempUrl: '',
                     // UI
-                    tab: 'dash', loading: false,
+                    tab: 'dash', loading: false, isUpdating: false,
                     isOnline: navigator.onLine,
                     // DATA - Cached products for offline
                     products: JSON.parse(localStorage.getItem('df_prods') || '[]'),
@@ -662,7 +674,7 @@
                     pendingProducts: JSON.parse(localStorage.getItem('df_admin_pend_prods') || '[]'),
                     editor: { show: false, sku: '', name: '', price: 0, cost: 0, stock: 0, isNew: false },
                     // CHARTS
-                    chartSales: null, chartIncome: null, chartExpense: null
+                    chartSales: null, chartIncome: null, chartExpense: null, chartRenderTimeout: null,
                 }
             },
             computed: {
@@ -767,10 +779,16 @@
                     } catch (e) { this.initFbFallback(); }
                 },
                 initFbFallback() {
-                    let c = JSON.parse(localStorage.getItem('df_fb_config') || 'null');
-                    let def = { u: "https://sheebra-68425-default-rtdb.firebaseio.com", p: "sheebra-68425" };
-                    if (c) this.initFbReal(c.u, c.p); else this.initFbReal(def.u, def.p);
-                },
+    // Intentamos recuperar la última configuración buena guardada
+    let c = JSON.parse(localStorage.getItem('df_fb_config') || 'null');
+    
+    if (c && c.u && c.p) {
+        this.initFbReal(c.u, c.p);
+    } else {
+        // Si no hay nada guardado y falló la red, mejor avisar que conectar mal
+        alert("⚠️ No se pudo conectar. Revisa tu internet o la URL del script.");
+    }
+},
                 initFbReal(dbUrl, pid) {
                     if (typeof firebase === 'undefined' || !firebase.apps.length) firebase.initializeApp({ databaseURL: dbUrl, projectId: pid });
                     const db = firebase.database();
@@ -797,33 +815,49 @@
                     this.loading = false;
                 },
                 // AUTH
-                async checkPin() {
-                    if (!this.pinInput) return;
-                    this.loading = true;
-                    try {
-                        const res = await api(this.apiUrl, 'validateUserPin', { pin: this.pinInput });
-                        if (res.success && res.employee) {
-                            const esAdmin = (res.employee.role === 'ADMIN' || res.employee.name.toUpperCase() === 'ADMIN');
-                            if (esAdmin) {
-                                this.locked = false;
-                                localStorage.setItem('df_admin_pin', this.pinInput);
-                                this.pinInput = '';
-                            } else {
-                                alert("⛔ Solo Admins"); this.pinInput = '';
-                            }
-                        } else {
-                            alert("PIN Incorrecto"); this.pinInput = '';
-                        }
-                    } catch (e) {
-                        if (this.pinInput === localStorage.getItem('df_admin_pin')) {
-                            alert("⚠️ Admin Offline (Modo Seguro)");
-                            this.locked = false; this.pinInput = '';
-                        } else {
-                            alert("Offline: PIN no reconocido.");
-                        }
-                    }
-                    this.loading = false;
-                },
+               async checkPin() {
+    if (!this.pinInput || this.pinInput.length < 4) return;
+
+    // 1. ACCESO OFFLINE RÁPIDO (Si ya entraste antes)
+    if (this.pinInput === localStorage.getItem('df_admin_pin')) {
+        this.locked = false;
+        this.pinInput = '';
+        return;
+    }
+
+    this.loading = true;
+    try {
+        const res = await this.api(this.apiUrl, 'validateUserPin', { pin: this.pinInput });
+        
+        if (res.success && res.employee) {
+            // Normalizamos a mayúsculas para evitar errores
+            const role = (res.employee.role || '').toUpperCase();
+            const name = (res.employee.name || '').toUpperCase();
+
+            if (role === 'ADMIN' || name === 'ADMIN') {
+                this.locked = false;
+                localStorage.setItem('df_admin_pin', this.pinInput); // Guardar para offline
+                this.pinInput = '';
+            } else {
+                alert("⛔ Acceso denegado: Solo Admins");
+                this.pinInput = '';
+            }
+        } else {
+            alert("PIN Incorrecto");
+            this.pinInput = '';
+        }
+    } catch (e) {
+        // EMERGENCIA: Si falla internet pero el PIN es el maestro guardado
+        if (this.savedPin && this.pinInput === this.savedPin) {
+            alert("⚠️ Modo Admin Offline");
+            this.locked = false;
+            this.pinInput = '';
+        } else {
+            alert(e.message === 'Aborted' ? '⚠️ Internet muy lento' : "Error: " + e.message);
+        }
+    }
+    this.loading = false;
+},
                 saveUrl() { this.apiUrl = this.tempUrl; localStorage.setItem('df_url', this.tempUrl); this.fetchConfig(); },
                 // API
                 async api(url, act, data = {}) {
@@ -832,33 +866,46 @@
                     return await r.json();
                 },
                 // DATA REFRESH
-                refreshData() {
-                    const sales = this.allSales.filter(s => {
-                        const d = this.normalizeDate(s.date || s.time);
-                        return d >= this.startDate && d <= this.endDate;
-                    });
-                    this.filteredSales = [...sales].sort((a, b) => (b.id || '').localeCompare(a.id || ''));
-                    this.rangeTotal = sales.reduce((a, b) => a + Number(b.total || 0), 0);
-                    this.rangeCOGS = sales.reduce((a, b) => {
-                        if (b.totalCost !== undefined && b.totalCost > 0) return a + Number(b.totalCost);
-                        return a + (Number(b.total || 0) * 0.7);
-                    }, 0);
-                    this.rangeCount = sales.length;
-                    const purchases = this.allRestocks.filter(r => {
-                        const d = this.normalizeDate(r.date);
-                        return d >= this.startDate && d <= this.endDate;
-                    });
-                    this.filteredPurchases = [...purchases].reverse();
-                    this.purchaseTotal = purchases.reduce((a, b) => a + (Number(b.qty || 0) * Number(b.cost || 0)), 0);
-                    this.purchaseCount = purchases.length;
-                    this.renderChart(sales, purchases);
-                },
-                resetUrl() {
-                    if (confirm("¿Desvincular dispositivo?")) {
-                        localStorage.removeItem('df_url');
-                        location.reload();
-                    }
-                },
+               refreshData() {
+    // 1. Cálculos normales (Igual que siempre)
+    const sales = this.allSales.filter(s => {
+        const d = this.normalizeDate(s.date || s.time);
+        return d >= this.startDate && d <= this.endDate;
+    });
+    
+    this.filteredSales = [...sales].sort((a, b) => (b.id || '').localeCompare(a.id || ''));
+    this.rangeTotal = sales.reduce((a, b) => a + Number(b.total || 0), 0);
+    
+    this.rangeCOGS = sales.reduce((a, b) => {
+        if (b.totalCost !== undefined && b.totalCost > 0) return a + Number(b.totalCost);
+        return a + (Number(b.total || 0) * 0.7);
+    }, 0);
+    
+    this.rangeCount = sales.length;
+    
+    const purchases = this.allRestocks.filter(r => {
+        const d = this.normalizeDate(r.date);
+        return d >= this.startDate && d <= this.endDate;
+    });
+    
+    this.filteredPurchases = [...purchases].reverse();
+    this.purchaseTotal = purchases.reduce((a, b) => a + (Number(b.qty || 0) * Number(b.cost || 0)), 0);
+    this.purchaseCount = purchases.length;
+    
+    // 2. LÓGICA DE ESCRITORIO (DEBOUNCE)
+    // Si ya había una orden de dibujo pendiente, la cancelamos para no trabajar doble
+    if (this.chartRenderTimeout) {
+        clearTimeout(this.chartRenderTimeout);
+    }
+    
+    // Activamos el "Cargando..." visual
+    this.isUpdating = true;
+
+    // Esperamos 200ms. Si el usuario cambia algo más, esto se cancela.
+    this.chartRenderTimeout = setTimeout(() => {
+        this.renderChart(sales, purchases);
+    }, 200);
+},
                 // UTILS
                 normalizeDate(isoStr) { if (!isoStr) return ''; return new Date(isoStr).toLocaleDateString('sv'); },
                 normalizeMethod(m) {
@@ -952,34 +999,79 @@
                     this.loading = false;
                     alert("Sincronización terminada.");
                 },
-                async saveProduct() {
-                    if (!this.editor.name) return alert("Nombre obligatorio");
-                    if (this.editor.isNew) {
-                        const existe = this.products.find(p => p[0] === this.editor.sku);
-                        if (existe) return alert("⛔ SKU YA EXISTE");
-                    }
-                    if (this.editor.price < 0 || this.editor.cost < 0) {
-                        return alert("⛔ VALORES INVALIDOS (Negativos)");
-                    }
-                    this.loading = true;
-                    try {
-                        await this.api(this.apiUrl, 'adminUpdateProduct', {
-                            sku: this.editor.sku, name: this.editor.name, price: this.editor.price, qty: this.editor.stock, cost: this.editor.cost, isNew: this.editor.isNew
-                        });
-                        // FIX: OPTIMISTIC UPDATE LOGIC (PREVENT DUPLICATE)
-                        if (!this.editor.isNew && this.editor.oldSku && this.editor.oldSku !== this.editor.sku) {
-                            const idx = this.products.findIndex(p => p[0] === this.editor.oldSku);
-                            if (idx > -1) this.products[idx][0] = this.editor.sku;
-                        } else if (this.editor.isNew) {
-                            const yaEsta = this.products.find(p => p[0] === this.editor.sku);
-                            if (!yaEsta) {
-                                this.products.push([this.editor.sku, this.editor.name, this.editor.price, this.editor.stock, this.editor.cost, this.editor.reorder]);
-                            }
-                        }
-                        this.editor.show = false;
-                    } catch (e) { alert(e.message); }
-                    this.loading = false;
-                },
+               async saveProduct() {
+    // --- VALIDACIONES ORIGINALES (INTACTAS) ---
+    if (!this.editor.name) return alert("Nombre obligatorio");
+    
+    if (this.editor.isNew) {
+        const existe = this.products.find(p => p[0] === this.editor.sku);
+        if (existe) return alert("⛔ SKU YA EXISTE");
+    }
+    
+    // Respetamos tu regla: Solo bloquea Precio/Costo negativo. Stock negativo SÍ se permite.
+    if (this.editor.price < 0 || this.editor.cost < 0) {
+        return alert("⛔ VALORES INVALIDOS (El precio o costo no pueden ser negativos)");
+    }
+
+    // ⚡ 1. COPIA DE SEGURIDAD (Por si falla internet)
+    const backupProducts = JSON.parse(JSON.stringify(this.products));
+
+    // ⚡ 2. PREPARAR DATOS VISUALES
+    const newRow = [
+        this.editor.sku,
+        this.editor.name,
+        Number(this.editor.price),
+        Number(this.editor.stock),
+        Number(this.editor.cost),
+        Number(this.editor.reorder)
+    ];
+
+    // ⚡ 3. ACTUALIZACIÓN VISUAL INSTANTÁNEA (OPTIMISTA)
+    if (!this.editor.isNew && this.editor.oldSku && this.editor.oldSku !== this.editor.sku) {
+        // CASO 1: RENOMBRAR SKU
+        const idx = this.products.findIndex(p => p[0] === this.editor.oldSku);
+        if (idx > -1) this.products[idx] = newRow;
+    } else if (this.editor.isNew) {
+        // CASO 2: NUEVO PRODUCTO
+        // Verificamos duplicado visual por si acaso
+        const yaEsta = this.products.find(p => p[0] === this.editor.sku);
+        if (!yaEsta) this.products.push(newRow);
+    } else {
+        // CASO 3: EDICIÓN NORMAL (Mismo SKU)
+        // Este caso faltaba optimizar en tu versión anterior
+        const idx = this.products.findIndex(p => p[0] === this.editor.sku);
+        if (idx > -1) this.products[idx] = newRow;
+    }
+
+    // Guardamos en memoria del celular
+    localStorage.setItem('df_prods', JSON.stringify(this.products));
+    
+    // Cerramos el formulario YA MISMO (Sensación de velocidad)
+    this.editor.show = false; 
+    
+    // ⚡ 4. ENVIAR A GOOGLE EN SEGUNDO PLANO
+    // Quitamos 'this.loading = true' para no bloquear la pantalla
+    try {
+        await this.api(this.apiUrl, 'adminUpdateProduct', {
+            sku: this.editor.sku, 
+            oldSku: this.editor.oldSku, // Importante para renombrar
+            name: this.editor.name, 
+            price: this.editor.price, 
+            qty: this.editor.stock, 
+            cost: this.editor.cost, 
+            reorder: this.editor.reorder, // Agregado para que no se pierda
+            isNew: this.editor.isNew
+        });
+        // Si llega aquí, todo salió bien. No hacemos nada.
+    } catch (e) {
+        // ⚡ 5. ROLLBACK (SI FALLA, DESHACEMOS TODO)
+        console.error("Falló sync", e);
+        this.products = backupProducts; // Restauramos la lista vieja
+        localStorage.setItem('df_prods', JSON.stringify(this.products));
+        alert("⚠️ Error al guardar en la nube: " + e.message);
+        this.editor.show = true; // Volvemos a abrir para que reintente
+    }
+},
                 formatTime(iso) {
                     if (!iso) return '-';
                     try { return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); }
@@ -1055,91 +1147,143 @@
                     if (this.chartIncome) { this.chartIncome.destroy(); this.chartIncome = null; }
                     if (this.chartExpense) { this.chartExpense.destroy(); this.chartExpense = null; }
                 },
-                renderChart(sales, purchases) {
-                    if (!sales) sales = this.filteredSales;
-                    if (!purchases) purchases = this.filteredPurchases;
-                    this.$nextTick(() => {
-                        this.destroyCharts();
-                        const C = {
-                            'Efectivo': { in: '#16a34a', out: '#14532d' },
-                            'Debito': { in: '#2563eb', out: '#1e3a8a' },
-                            'Credito': { in: '#eab308', out: '#713f12' },
-                            'Mercadopago': { in: '#06b6d4', out: '#155e75' },
-                            'Otro': { in: '#9ca3af', out: '#4b5563' }
-                        };
-                        // --- 1. SALES BAR ---
-                        const ctx1 = document.getElementById('salesChart');
-                        if (ctx1) {
-                            const hours = {};
-                            sales.forEach(s => {
-                                try {
-                                    const t = s.time || s.date;
-                                    if (t && t.includes(':')) {
-                                        const h = new Date(t).getHours();
-                                        hours[h] = (hours[h] || 0) + Number(s.total || 0);
-                                    }
-                                } catch (e) { }
-                            });
-                            const lb = Object.keys(hours).sort((a, b) => Number(a) - Number(b)).map(h => h + 'h');
-                            const dt = Object.keys(hours).sort((a, b) => Number(a) - Number(b)).map(h => hours[h]);
-                            this.chartSales = new Chart(ctx1, {
-                                type: 'bar',
-                                data: { labels: lb.length ? lb : ['Sin datos'], datasets: [{ label: 'Ventas', data: dt.length ? dt : [0], backgroundColor: '#4f46e5', borderRadius: 4 }] },
-                                options: { responsive: true, maintainAspectRatio: false, animation: { duration: 400 }, plugins: { legend: { display: false } } }
-                            });
-                        }
-                        // --- 2. INCOME DONUT ---
-                        const ctx2 = document.getElementById('incomeDonut');
-                        if (ctx2) {
-                            const methods = {};
-                            sales.forEach(s => {
-                                if (s.details && (s.method === 'Mixto' || s.payMethod === 'Mixto')) {
-                                    s.details.split('|').forEach(part => {
-                                        const [mRaw, valRaw] = part.split(':');
-                                        if (mRaw && valRaw) {
-                                            const mx = this.normalizeMethod(mRaw);
-                                            methods[mx] = (methods[mx] || 0) + Number(valRaw);
-                                        }
-                                    });
-                                } else if (s.payments && Array.isArray(s.payments)) {
-                                    s.payments.forEach(p => {
-                                        const mx = this.normalizeMethod(p.method);
-                                        methods[mx] = (methods[mx] || 0) + Number(p.amount);
-                                    });
-                                } else {
-                                    const m = this.normalizeMethod(s.method || s.payMethod || 'Efectivo');
-                                    methods[m] = (methods[m] || 0) + Number(s.total || 0);
-                                }
-                            });
-                            const labels = Object.keys(methods);
-                            const data = Object.values(methods);
-                            const bg = labels.map(l => C[l] ? C[l].in : C['Otro'].in);
-                            this.chartIncome = new Chart(ctx2, {
-                                type: 'doughnut',
-                                data: { labels, datasets: [{ data, backgroundColor: bg }] },
-                                options: { response: true, maintainAspectRatio: false, animation: { duration: 400 }, plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, padding: 10 } } } }
-                            });
-                        }
-                        // --- 3. EXPENSE DONUT ---
-                        const ctx3 = document.getElementById('expenseDonut');
-                        if (ctx3) {
-                            const methods = {};
-                            purchases.forEach(p => {
-                                const m = this.normalizeMethod(p.payMethod || 'Efectivo');
-                                methods[m] = (methods[m] || 0) + (Number(p.qty || 0) * Number(p.cost || 0));
-                            });
-                            const labels = Object.keys(methods);
-                            const data = Object.values(methods);
-                            const bg = labels.map(l => C[l] ? C[l].out : C['Otro'].out);
-                            this.chartExpense = new Chart(ctx3, {
-                                type: 'doughnut',
-                                data: { labels, datasets: [{ data, backgroundColor: bg }] },
-                                options: { responsive: true, maintainAspectRatio: false, animation: { duration: 400 }, plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, padding: 10 } } } }
-                            });
-                        }
+renderChart(sales, purchases) {
+    // PROTECCIÓN: Si el usuario cambió de pestaña, abortamos y liberamos la pantalla.
+    if (this.tab !== 'dash') {
+        this.isUpdating = false;
+        return;
+    }
+
+    if (!sales) sales = this.filteredSales;
+    if (!purchases) purchases = this.filteredPurchases;
+    
+    this.$nextTick(() => {
+        // --- 1. SALES BAR ---
+        const ctx1 = document.getElementById('salesChart');
+        if (ctx1) {
+            // Método seguro de Desktop: Destruir por instancia
+            const existing1 = Chart.getChart(ctx1);
+            if (existing1) existing1.destroy();
+            
+            const hours = {};
+            sales.forEach(s => {
+                try {
+                    const t = s.time || s.date;
+                    if (t && t.includes(':')) {
+                        const h = new Date(t).getHours();
+                        hours[h] = (hours[h] || 0) + Number(s.total || 0);
+                    }
+                } catch (e) { }
+            });
+            const lb = Object.keys(hours).sort((a, b) => Number(a) - Number(b)).map(h => h + 'h');
+            const dt = Object.keys(hours).sort((a, b) => Number(a) - Number(b)).map(h => hours[h]);
+            
+            new Chart(ctx1, {
+                type: 'bar',
+                data: { labels: lb.length ? lb : ['Sin datos'], datasets: [{ label: 'Ventas', data: dt.length ? dt : [0], backgroundColor: '#4f46e5', borderRadius: 4 }] },
+                options: { responsive: true, maintainAspectRatio: false, animation: { duration: 400 }, plugins: { legend: { display: false } } }
+            });
+        }
+
+        // Colores Unificados
+        const C = {
+            'Efectivo': { in: '#16a34a', out: '#14532d' }, 'Debito': { in: '#2563eb', out: '#1e3a8a' },
+            'Credito': { in: '#eab308', out: '#713f12' }, 'Mercadopago': { in: '#06b6d4', out: '#155e75' },
+            'Otro': { in: '#9ca3af', out: '#4b5563' }
+        };
+
+        // --- 2. INCOME DONUT ---
+        const ctx2 = document.getElementById('incomeDonut');
+        if (ctx2) {
+            const existing2 = Chart.getChart(ctx2);
+            if (existing2) existing2.destroy();
+
+            const methods = {};
+            sales.forEach(s => {
+                if (s.details && (s.method === 'Mixto' || s.payMethod === 'Mixto')) {
+                    s.details.split('|').forEach(part => {
+                        const [mRaw, valRaw] = part.split(':');
+                        if (mRaw && valRaw) methods[this.normalizeMethod(mRaw)] = (methods[this.normalizeMethod(mRaw)] || 0) + Number(valRaw);
                     });
+                } else if (s.payments && Array.isArray(s.payments)) {
+                        s.payments.forEach(p => { methods[this.normalizeMethod(p.method)] = (methods[this.normalizeMethod(p.method)] || 0) + Number(p.amount); });
+                } else {
+                    const m = this.normalizeMethod(s.method || s.payMethod || 'Efectivo');
+                    methods[m] = (methods[m] || 0) + Number(s.total || 0);
                 }
-            },
+            });
+            const labels = Object.keys(methods);
+            const data = Object.values(methods);
+            const bg = labels.map(l => C[l] ? C[l].in : C['Otro'].in);
+            
+            new Chart(ctx2, {
+                type: 'doughnut',
+                data: { labels, datasets: [{ data, backgroundColor: bg }] },
+                options: { response: true, maintainAspectRatio: false, animation: { duration: 400 }, plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, padding: 10 } } } }
+            });
+        }
+
+        // --- 3. EXPENSE DONUT ---
+        const ctx3 = document.getElementById('expenseDonut');
+        if (ctx3) {
+            const existing3 = Chart.getChart(ctx3);
+            if (existing3) existing3.destroy();
+
+            const methods = {};
+            purchases.forEach(p => {
+                const m = this.normalizeMethod(p.payMethod || 'Efectivo');
+                methods[m] = (methods[m] || 0) + (Number(p.qty || 0) * Number(p.cost || 0));
+            });
+            const labels = Object.keys(methods);
+            const data = Object.values(methods);
+            const bg = labels.map(l => C[l] ? C[l].out : C['Otro'].out);
+            
+            new Chart(ctx3, {
+                type: 'doughnut',
+                data: { labels, datasets: [{ data, backgroundColor: bg }] },
+                options: { responsive: true, maintainAspectRatio: false, animation: { duration: 400 }, plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, padding: 10 } } } }
+            });
+        }
+        
+        // ¡LIBERAMOS LA PANTALLA!
+        this.isUpdating = false; 
+    });
+},
+
+
+// --- AQUÍ FALTABA ESTA FUNCIÓN ---
+selectDateRange(type) {
+    const today = new Date();
+    // Ajuste para zona horaria local (Argentina/General) para evitar errores de dia anterior
+    const localISO = (d) => {
+        const offset = d.getTimezoneOffset() * 60000;
+        return new Date(d.getTime() - offset).toISOString().split('T')[0];
+    };
+
+    if (type === 'today') {
+        this.startDate = localISO(new Date());
+        this.endDate = this.startDate;
+    } else if (type === 'week') {
+        const curr = new Date();
+        const first = curr.getDate() - curr.getDay(); // First day is the day of the month - the day of the week
+        const firstday = new Date(curr.setDate(first));
+        const lastday = new Date(curr.setDate(curr.getDate() + 6));
+        this.startDate = localISO(firstday);
+        this.endDate = localISO(lastday);
+    } else if (type === 'month') {
+        const date = new Date();
+        const firstDay = new Date(date.getFullYear(), date.getMonth(), 1);
+        const lastDay = new Date(date.getFullYear(), date.getMonth() + 1, 0);
+        this.startDate = localISO(firstDay);
+        this.endDate = localISO(lastDay);
+    }
+    this.showDatePicker = false;
+    // Forzamos refresco manual por si el watch no detecta cambio en mismo dia
+    this.refreshData();
+}
+
+            }, 
+
             mounted() {
                 if (this.apiUrl) this.fetchConfig();
                 setInterval(() => { this.isOnline = navigator.onLine; }, 5000);
