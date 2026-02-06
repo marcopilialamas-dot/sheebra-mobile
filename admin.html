@@ -874,16 +874,16 @@
     this.loading = false;
 },
                 saveUrl() { this.apiUrl = this.tempUrl; localStorage.setItem('df_url', this.tempUrl); this.fetchConfig(); },
-                resetUrl() {
-    if (confirm("¿Desvincular y cambiar servidor?")) {
-        // 🔥 Limpieza profunda de llaves MÓVILES
-        localStorage.removeItem('df_url');
-        localStorage.removeItem('df_admin_pin');
-        localStorage.removeItem('df_fb_config');
-        localStorage.removeItem('df_prods'); // Opcional: borrar caché de productos
-        location.reload();
-    }
-},
+               resetUrl() {
+                    if (confirm("¿Desvincular y cambiar servidor?")) {
+                        // Borramos las credenciales correctas (Versión Mobile)
+                        localStorage.removeItem('df_url');        // URL del script
+                        localStorage.removeItem('df_admin_pin');  // PIN guardado
+                        localStorage.removeItem('df_fb_config');  // Config de Firebase
+                        localStorage.removeItem('df_prods');      // Caché de productos
+                        location.reload();
+                    }
+                },
                 // API
                 async api(url, act, data = {}) {
                     if (!navigator.onLine) throw new Error("Offline");
