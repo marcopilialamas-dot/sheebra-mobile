@@ -530,9 +530,9 @@
                             </div>
                             <div style="text-align:right">
                                 <div style="font-weight:bold; color:var(--p)">${{ p[2] }}</div>
-                                <div :class="['badge', p[3] <= (p[5]||5) ? 'bg-red':'bg-green']">
-                                    {{ p[3] }} / Min: {{ p[5]||5 }}
-                                </div>
+                               <div :class="['badge', Number(p[3]) <= Number(p[5]) ? 'bg-red':'bg-green']">
+    {{ p[3] }} / Min: {{ p[5] }}
+</div>
                             </div>
                         </div>
                     </div>
@@ -808,7 +808,7 @@
                     if (typeof firebase === 'undefined' || !firebase.apps.length) firebase.initializeApp({ databaseURL: dbUrl, projectId: pid });
                     const db = firebase.database();
                     db.ref('inventory').on('value', s => {
-                        this.products = s.val() ? Object.values(s.val()).map(p => [p.sku, p.name, Number(p.price), Number(p.stock), Number(p.cost), Number(p.reorder)]) : [];
+                       this.products = s.val() ? Object.values(s.val()).map(p => [p.sku, p.name, Number(p.price), Number(p.stock), Number(p.cost), (p.reorder !== undefined && p.reorder !== null) ? Number(p.reorder) : 5]) : [];
                         localStorage.setItem('df_prods', JSON.stringify(this.products));
                     });
                     db.ref('sales').limitToLast(2000).on('value', s => { this.allSales = s.val() ? Object.values(s.val()) : []; });
@@ -981,7 +981,7 @@
                             price: pRaw[2],
                             stock: pRaw[3],
                             cost: pRaw[4],
-                            reorder: pRaw[5] || 5,
+                          reorder: (pRaw[5] !== undefined && pRaw[5] !== null) ? pRaw[5] : 5,
                             isNew: false
                         };
                     } else {
